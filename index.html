@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文伍的 Vibe Coding 实战</title>
+  <style>
+    :root {
+      --bg: #f7f6f3;
+      --card: #ffffff;
+      --line: #e3e1db;
+      --ink: #26251f;
+      --muted: #6b6a63;
+      --accent: #185fa5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+      line-height: 1.7;
+    }
+    .card {
+      width: 100%;
+      max-width: 520px;
+      padding: 40px 36px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      margin-bottom: 20px;
+      font-size: 12px;
+      color: var(--accent);
+      background: #e6f1fb;
+      border: 1px solid #b5d4f4;
+      border-radius: 999px;
+    }
+    h1 {
+      margin: 0 0 12px;
+      font-size: 24px;
+      font-weight: 500;
+      letter-spacing: -0.2px;
+    }
+    p {
+      margin: 0 0 10px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    hr {
+      margin: 28px 0 20px;
+      border: 0;
+      border-top: 1px solid var(--line);
+    }
+    .meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      font-size: 12px;
+      color: #8a8981;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <span class="badge">Day 2 · 占位页</span>
+
+    <h1>文伍的 Vibe Coding 实战</h1>
+
+    <p>这是项目的第一版页面，只用来验证一件事：<br>
+       代码已经成功从我的电脑，推到了 GitHub。</p>
+
+    <p>页面里暂时什么功能都没有——功能开发排在 Day 7，那时候才开始做 MVP。</p>
+
+    <hr>
+
+    <div class="meta">
+      <span>仓库：wenwu-vibecoding</span>
+      <span>2026-09-17</span>
+    </div>
+  </main>
+</body>
+</html>
