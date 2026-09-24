@@ -13,11 +13,11 @@
       --muted: #6b6a63;
       --accent: #185fa5;
       --accent-soft: #e6f1fb;
-      --warn-soft: #fdf3e0;
-      --warn-line: #e8c98a;
       --warn-ink: #8a6320;
     }
     * { box-sizing: border-box; }
+    /* Day 9 补：键盘焦点可见（WCAG 2.4.7）—— 全局统一一条，覆盖所有可交互元素 */
+    :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
     body {
       margin: 0;
       background: var(--bg);
@@ -38,7 +38,7 @@
     .badge {
       display: inline-block;
       padding: 3px 10px;
-      font-size: 12px;
+      font-size: 13px;
       color: var(--accent);
       background: var(--accent-soft);
       border: 1px solid #b5d4f4;
@@ -61,6 +61,7 @@
       cursor: pointer;
     }
     .jump button:hover { background: #d8eaf9; }
+    .jump button:active { background: #c2ddf5; }
     .quick { display: flex; flex-wrap: wrap; gap: 8px; }
     .quick a {
       padding: 5px 12px;
@@ -72,6 +73,7 @@
       border-radius: 999px;
     }
     .quick a:hover { background: #d8eaf9; }
+    .quick a:active { background: #c2ddf5; }
 
     /* ===== ①b 主视图（Day 8：mock 数据渲染 + 四状态） ===== */
     section.mainview {
@@ -93,9 +95,10 @@
       border: 1px solid var(--line); border-radius: 999px;
     }
     .demo-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .demo-btn:active { border-color: var(--accent); background: var(--accent-soft); }
     .demo-btn.active { color: #fff; background: var(--accent); border-color: var(--accent); }
 
-    .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
     .cards--res { grid-template-columns: repeat(3, 1fr); }
     .mv-sub { margin: 18px 0 10px; font-size: 15px; }
     .card {
@@ -109,7 +112,7 @@
     a.card:hover { border-color: var(--accent); box-shadow: 0 2px 10px rgba(24, 95, 165, 0.10); }
     .card-no {
       align-self: flex-start;
-      padding: 1px 9px; font-size: 12px; font-weight: 600;
+      padding: 1px 9px; font-size: 13px; font-weight: 600;
       color: var(--accent); background: var(--accent-soft);
       border: 1px solid #b5d4f4; border-radius: 999px;
     }
@@ -117,13 +120,13 @@
     .card-desc { margin: 0; font-size: 13px; color: var(--muted); flex: 1; }
     .card-tag {
       align-self: flex-start;
-      padding: 2px 10px; font-size: 12px;
+      padding: 2px 10px; font-size: 13px;
       color: #1c7a43; background: #e6f6ec;
       border: 1px solid #b4e0c5; border-radius: 999px;
     }
-    .card-meta { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+    .card-meta { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
 
-    .skel-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .skel-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
     .skel {
       height: 132px;
       border: 1px solid var(--line); border-radius: 14px;
@@ -144,6 +147,8 @@
       margin-top: 12px; padding: 6px 18px; font-size: 13px; cursor: pointer;
       color: #fff; background: var(--accent); border: 0; border-radius: 999px;
     }
+    .retry-btn:hover { background: #134a80; }
+    .retry-btn:active { background: #0f3d69; }
 
     /* 响应式：≤900px 平板两列；≤640px 手机单列纵向堆叠，禁止横向溢出 */
     @media (max-width: 900px) {
@@ -152,7 +157,10 @@
     @media (max-width: 640px) {
       .cards, .cards--res, .skel-grid { grid-template-columns: 1fr; }
       html, body { overflow-x: hidden; }
-      section.mainview { padding: 20px 16px; }
+      /* Day 9 修复①：窄屏内边距统一收窄（原先只有 .mainview 降了，其余板块仍是桌面 26–28px） */
+      .wrap { padding: 16px 12px 48px; }
+      header.site, section.mainview, section.scene, section.resources { padding: 20px 16px; }
+      footer.site { padding: 16px; }
     }
 
     /* ===== ② 场景板块（F3，S1–S4） ===== */
@@ -170,7 +178,7 @@
       display: inline-block;
       padding: 2px 10px;
       margin-bottom: 14px;
-      font-size: 12px;
+      font-size: 13px;
       color: #1c7a43;
       background: #e6f6ec;
       border: 1px solid #b4e0c5;
@@ -204,7 +212,7 @@
       position: absolute;
       left: 14px; top: 14px;
       width: 22px; height: 22px;
-      font-size: 12px; font-weight: 600;
+      font-size: 13px; font-weight: 600;
       line-height: 22px;
       text-align: center;
       color: #fff;
@@ -212,19 +220,10 @@
       border-radius: 50%;
     }
     .step-text { font-size: 14px; }
-    .step-meta { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
-    .stars { color: #d98a00; letter-spacing: 1px; }
+    .step-meta { margin-top: 6px; font-size: 13px; color: var(--muted); }
+    .stars { color: #946200; letter-spacing: 1px; } /* Day 9 修复④：原 #d98a00 对白底仅 2.77:1，未达 AA 4.5 */
     .mins { color: var(--accent); font-weight: 600; }
-    .note { margin-top: 6px; font-size: 12.5px; color: var(--warn-ink); }
-
-    .todo {
-      padding: 14px 16px;
-      font-size: 13px;
-      color: var(--warn-ink);
-      background: var(--warn-soft);
-      border: 1px dashed var(--warn-line);
-      border-radius: 10px;
-    }
+    .note { margin-top: 6px; font-size: 13px; color: var(--warn-ink); }
 
     /* ===== ③ 资源入口（F2） ===== */
     section.resources {
@@ -245,7 +244,7 @@
     footer.site {
       margin-top: 24px;
       padding: 18px 20px;
-      font-size: 12.5px;
+      font-size: 13px;
       color: var(--muted);
       background: var(--card);
       border: 1px solid var(--line);
@@ -259,7 +258,7 @@
 
     <!-- ① 页头：站点名 + 一句话定位 + 搜索框（F1a）+ 场景速查（F1b） -->
     <header class="site">
-      <span class="badge">MVP · 第 1 周 · Day 7</span>
+      <span class="badge">MVP · 第 2 周 · Day 9</span>
       <h1>电子设备使用指南</h1>
       <p class="tagline">写给用 Android 手机 + Windows 电脑的理工科学生：每件事分几步、每步多难、要多久，动手前先看清楚。</p>
 
@@ -457,7 +456,7 @@
     <footer class="site">
       <p><b>卡住了找谁：</b>照做失败时，先回到对应步骤的"注意事项"检查；仍解决不了，用"资源入口"里的官方支持页搜索报错信息。</p>
       <p><b>难度与耗时说明：</b>所有星级与分钟数均以实际操作实测为准，未实测的步骤标注「待实测」——本站不填估算值。</p>
-      <p><b>更新日期：</b>2026-09-21 ｜ <b>本期范围：</b>Android + Windows，评论/投票/登录等功能本期不做。</p>
+      <p><b>更新日期：</b>2026-09-24 ｜ <b>本期范围：</b>Android + Windows，评论/投票/登录等功能本期不做。</p>
     </footer>
 
   </div>
