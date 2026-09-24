@@ -150,18 +150,7 @@
     .retry-btn:hover { background: #134a80; }
     .retry-btn:active { background: #0f3d69; }
 
-    /* 响应式：≤900px 平板两列；≤640px 手机单列纵向堆叠，禁止横向溢出 */
-    @media (max-width: 900px) {
-      .cards, .cards--res, .skel-grid { grid-template-columns: repeat(2, 1fr); }
-    }
-    @media (max-width: 640px) {
-      .cards, .cards--res, .skel-grid { grid-template-columns: 1fr; }
-      html, body { overflow-x: hidden; }
-      /* Day 9 修复①：窄屏内边距统一收窄（原先只有 .mainview 降了，其余板块仍是桌面 26–28px） */
-      .wrap { padding: 16px 12px 48px; }
-      header.site, section.mainview, section.scene, section.resources { padding: 20px 16px; }
-      footer.site { padding: 16px; }
-    }
+    /* 响应式断点已统一移至本样式表末尾（Day 10 修复：原先写在此处，会被下方同特异性的主规则反向覆盖） */
 
     /* ===== ② 场景板块（F3，S1–S4） ===== */
     section.scene {
@@ -171,6 +160,27 @@
       padding: 26px 28px;
       margin-top: 20px;
       scroll-margin-top: 20px;
+    }
+    /* Day 10 新增：场景级视觉区分 —— 左侧主题色条 + 角落序号水印
+       起因：S1–S4 复用同一套 class，滚动时没有任何"换场景了"的视觉信号。
+       做法：每个场景一个 --sc 主题色，只加区分标识，不改任何文案与结构。 */
+    section.scene { position: relative; }
+    section.scene::before {
+      content: "";
+      position: absolute; left: 0; top: 24px; bottom: 24px;
+      width: 4px; border-radius: 0 4px 4px 0;
+      background: var(--sc);
+    }
+    section.scene--s1 { --sc: #185fa5; }
+    section.scene--s2 { --sc: #0f7b6c; }
+    section.scene--s3 { --sc: #946200; }
+    section.scene--s4 { --sc: #6b4fa3; }
+    .scene-no {
+      position: absolute; top: 10px; right: 22px;
+      font-size: 72px; font-weight: 700; line-height: 1;
+      color: var(--sc); opacity: 0.12;
+      pointer-events: none; user-select: none;
+      font-variant-numeric: tabular-nums;
     }
     .scene-head h2 { margin: 0 0 4px; font-size: 20px; }
     .scene-desc { margin: 0 0 12px; color: var(--muted); font-size: 14px; }
@@ -251,6 +261,25 @@
       border-radius: 16px;
     }
     footer.site p { margin: 4px 0; }
+
+    /* ===== 响应式断点（Day 10 起统一集中在此，位于所有主规则之后）=====
+       原因：媒体查询不提升选择器特异性，同特异性时源码顺序在后者胜出。断点若写在主定义
+       之前，窄屏样式会被后面的主规则反向覆盖 —— Day 9 的内边距修复就因此对
+       section.scene / section.resources / footer.site 三处未生效（Day 10 复查发现并修复）。
+       约定：今后新增样式规则一律加在本区块之前。 */
+    @media (max-width: 900px) {
+      .cards, .cards--res, .skel-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 640px) {
+      .cards, .cards--res, .skel-grid { grid-template-columns: 1fr; }
+      html, body { overflow-x: hidden; }
+      /* Day 9 修复①：窄屏内边距统一收窄（原先只有 .mainview 降了，其余板块仍是桌面 26–28px） */
+      .wrap { padding: 16px 12px 48px; }
+      header.site, section.mainview, section.scene, section.resources { padding: 20px 16px; }
+      footer.site { padding: 16px; }
+      /* Day 10：场景序号水印在窄屏缩小，避免压住标题 */
+      .scene-no { font-size: 48px; top: 8px; right: 14px; }
+    }
   </style>
 </head>
 <body>
@@ -299,7 +328,8 @@
     </section>
 
     <!-- ② 场景板块 ×4（F3）—— 步骤 1 仅骨架，内容步骤 2 填充 -->
-    <section class="scene" id="scene-1">
+    <section class="scene scene--s1" id="scene-1">
+      <span class="scene-no" aria-hidden="true">01</span>
       <div class="scene-head">
         <h2>S1 实验数据 / 板书传电脑</h2>
         <p class="scene-desc">手机拍的实验数据、板书照片怎么进电脑、进报告。</p>
@@ -334,7 +364,8 @@
       </ol>
     </section>
 
-    <section class="scene" id="scene-2">
+    <section class="scene scene--s2" id="scene-2">
+      <span class="scene-no" aria-hidden="true">02</span>
       <div class="scene-head">
         <h2>S2 电脑文件传回手机</h2>
         <p class="scene-desc">报告、资料发到手机上预览、提交前检查。</p>
@@ -369,7 +400,8 @@
       </ol>
     </section>
 
-    <section class="scene" id="scene-3">
+    <section class="scene scene--s3" id="scene-3">
+      <span class="scene-no" aria-hidden="true">03</span>
       <div class="scene-head">
         <h2>S3 大文件传输</h2>
         <p class="scene-desc">实验视频、安装包这类聊天工具传不动的大文件怎么传。</p>
@@ -404,7 +436,8 @@
       </ol>
     </section>
 
-    <section class="scene" id="scene-4">
+    <section class="scene scene--s4" id="scene-4">
+      <span class="scene-no" aria-hidden="true">04</span>
       <div class="scene-head">
         <h2>S4 资料两端同步</h2>
         <p class="scene-desc">代码、笔记等学习资料在手机和电脑间的日常同步。</p>
