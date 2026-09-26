@@ -249,6 +249,23 @@
     ul.res li { padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
     ul.res li:last-child { border-bottom: 0; }
     ul.res a { color: var(--accent); }
+    /* Day 11：资源链接一键复制 —— 前端临时状态机（空闲 → 复制中 → 已复制 / 失败）。
+       颜色沿用现有语义色：成功=绿标签色、失败=Day 8 错误态红（对比度 Day 9 已算过，均过 AA）。 */
+    .copy-btn {
+      margin-left: 8px;
+      padding: 2px 10px;
+      font-size: 13px;
+      cursor: pointer;
+      color: var(--accent);
+      background: #fff;
+      border: 1px solid var(--accent);
+      border-radius: 999px;
+    }
+    .copy-btn:hover { background: var(--accent-soft); }
+    .copy-btn:active { background: #d8eaf9; }
+    .copy-btn[disabled] { cursor: wait; opacity: 0.65; }
+    .copy-btn.is-ok { color: #1c7a43; border-color: #1c7a43; background: #e6f6ec; }
+    .copy-btn.is-err { color: #9c3a3a; border-color: #e3b4b4; background: #fdf3f3; }
 
     /* ===== ④ 页脚 ===== */
     footer.site {
@@ -476,12 +493,12 @@
     <section class="resources" id="resources">
       <h2>官方 / 实用资源入口</h2>
       <ul class="res">
-        <li><a href="https://support.google.com/android" target="_blank" rel="noopener">Android 官方帮助</a> —— 手机系统设置、USB 传输模式的官方说明，S1 第 1 步卡住先查这里</li>
-        <li><a href="https://support.microsoft.com/zh-cn/windows" target="_blank" rel="noopener">Microsoft Windows 支持</a> —— 「此电脑」「文件资源管理器」和驱动问题的官方文档</li>
-        <li><a href="https://localsend.org" target="_blank" rel="noopener">LocalSend 官网</a> —— S2 用的局域网传输工具，开源免费、无广告</li>
-        <li><a href="https://pan.baidu.com" target="_blank" rel="noopener">百度网盘官网</a> —— S3 大文件中转用的网盘，客户端下载入口</li>
-        <li><a href="https://support.microsoft.com/zh-cn/onedrive" target="_blank" rel="noopener">OneDrive 帮助</a> —— S4 同步盘的官方设置指南（Windows 自带，登录即用）</li>
-        <li><a href="https://help.jianguoyun.com" target="_blank" rel="noopener">坚果云帮助中心</a> —— 国内同步盘官方文档，对网速敏感时的 OneDrive 替代</li>
+        <li><a href="https://support.google.com/android" target="_blank" rel="noopener">Android 官方帮助</a> —— 手机系统设置、USB 传输模式的官方说明，S1 第 1 步卡住先查这里 <button class="copy-btn" type="button" data-copy="https://support.google.com/android" aria-live="polite">复制</button></li>
+        <li><a href="https://support.microsoft.com/zh-cn/windows" target="_blank" rel="noopener">Microsoft Windows 支持</a> —— 「此电脑」「文件资源管理器」和驱动问题的官方文档 <button class="copy-btn" type="button" data-copy="https://support.microsoft.com/zh-cn/windows" aria-live="polite">复制</button></li>
+        <li><a href="https://localsend.org" target="_blank" rel="noopener">LocalSend 官网</a> —— S2 用的局域网传输工具，开源免费、无广告 <button class="copy-btn" type="button" data-copy="https://localsend.org" aria-live="polite">复制</button></li>
+        <li><a href="https://pan.baidu.com" target="_blank" rel="noopener">百度网盘官网</a> —— S3 大文件中转用的网盘，客户端下载入口 <button class="copy-btn" type="button" data-copy="https://pan.baidu.com" aria-live="polite">复制</button></li>
+        <li><a href="https://support.microsoft.com/zh-cn/onedrive" target="_blank" rel="noopener">OneDrive 帮助</a> —— S4 同步盘的官方设置指南（Windows 自带，登录即用） <button class="copy-btn" type="button" data-copy="https://support.microsoft.com/zh-cn/onedrive" aria-live="polite">复制</button></li>
+        <li><a href="https://help.jianguoyun.com" target="_blank" rel="noopener">坚果云帮助中心</a> —— 国内同步盘官方文档，对网速敏感时的 OneDrive 替代 <button class="copy-btn" type="button" data-copy="https://help.jianguoyun.com" aria-live="polite">复制</button></li>
       </ul>
     </section>
 
@@ -603,6 +620,66 @@
     // 支持 ?state=empty / ?state=error / ?state=success 直达（截图演示用）；无参数走正常流程
     const urlState = new URLSearchParams(location.search).get("state");
     runLoad(["empty", "error", "success"].indexOf(urlState) > -1 ? urlState : null);
+
+    /* ===== Day 11：资源链接一键复制（前端临时状态机） =====
+       状态流：空闲 → 复制中（按钮禁用）→ 已复制 ✓（2 秒后回空闲）/ 复制失败（4 秒后回空闲）。
+       剪贴板两层降级：navigator.clipboard（安全上下文）→ document.execCommand（file:// 等场景），
+       两层都失败才进错误态。?copyfail=1 强制失败路径（测试/截图用）。零网络请求。 */
+    (function () {
+      var FAIL = new URLSearchParams(location.search).has("copyfail");
+      var RESET_OK = 2000, RESET_ERR = 4000;
+
+      function writeClipboard(text) {
+        if (FAIL) { return Promise.reject(new Error("simulated failure (?copyfail=1)")); }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          return navigator.clipboard.writeText(text);
+        }
+        // 降级：隐藏 textarea + execCommand，兼容非安全上下文（如直接双击打开文件）
+        return new Promise(function (resolve, reject) {
+          var ta = document.createElement("textarea");
+          ta.value = text;
+          ta.setAttribute("readonly", "");
+          ta.style.position = "fixed";
+          ta.style.opacity = "0";
+          document.body.appendChild(ta);
+          ta.select();
+          var ok = false;
+          try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+          document.body.removeChild(ta);
+          if (ok) { resolve(); } else { reject(new Error("execCommand copy failed")); }
+        });
+      }
+
+      document.querySelectorAll(".copy-btn").forEach(function (btn) {
+        var timer = null;
+        btn.addEventListener("click", function () {
+          // 连续操作：任何状态下再点都重走状态机；先清掉上一轮的复原计时器，避免状态被旧计时器打断
+          if (timer) { clearTimeout(timer); timer = null; }
+          btn.disabled = true;
+          btn.classList.remove("is-ok", "is-err");
+          btn.textContent = "复制中…";
+          writeClipboard(btn.getAttribute("data-copy")).then(function () {
+            btn.disabled = false;
+            btn.classList.add("is-ok");
+            btn.textContent = "已复制 ✓";
+            timer = setTimeout(function () {
+              btn.classList.remove("is-ok");
+              btn.textContent = "复制";
+              timer = null;
+            }, RESET_OK);
+          }).catch(function () {
+            btn.disabled = false;
+            btn.classList.add("is-err");
+            btn.textContent = "复制失败";
+            timer = setTimeout(function () {
+              btn.classList.remove("is-err");
+              btn.textContent = "复制";
+              timer = null;
+            }, RESET_ERR);
+          });
+        });
+      });
+    })();
   </script>
 </body>
 </html>
