@@ -328,6 +328,23 @@
     ol.ins-steps li:last-child { margin-bottom: 0; }
     .ins-src { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
 
+    /* Day 12：仪器类型筛选（.ins-chip）—— 按 skills/frontend-design-baseline/SKILL.md 核对：
+       13px 文字 / 8 倍数间距 / 白字 on #185fa5 按 WCAG 公式计算 6.5:1 过 AA /
+       hover + active + 全局 focus-visible 三态 / 选中态用 aria-pressed 驱动 */
+    .ins-filter { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .ins-chip {
+      padding: 8px 16px;
+      font-size: 13px;
+      cursor: pointer;
+      color: var(--accent);
+      background: #fff;
+      border: 1px solid var(--accent);
+      border-radius: 999px;
+    }
+    .ins-chip:hover { background: var(--accent-soft); }
+    .ins-chip:active { background: #d8eaf9; }
+    .ins-chip[aria-pressed="true"] { color: #fff; background: var(--accent); }
+
     /* ===== 响应式断点（Day 10 起统一集中在此，位于所有主规则之后）=====
        原因：媒体查询不提升选择器特异性，同特异性时源码顺序在后者胜出。断点若写在主定义
        之前，窄屏样式会被后面的主规则反向覆盖 —— Day 9 的内边距修复就因此对
@@ -555,7 +572,16 @@
     <!-- ④ 仪器速查（F5，v1.4）：34 条操作条目由 JS 渲染，本地关键词过滤，零网络请求 -->
     <section class="instruments" id="instruments">
       <h2>仪器速查</h2>
-      <p class="ins-desc">6 台实验室常用仪器的 34 条常用操作（提炼自厂商说明书，标注出处页码）。输入关键词实时过滤——纯本地搜索，断网照常用。</p>
+      <p class="ins-desc">6 台实验室常用仪器的 34 条常用操作（提炼自厂商说明书，标注出处页码）。点下方按钮按仪器类型筛选，或输入关键词实时过滤——纯本地，断网照常用。</p>
+      <div class="ins-filter" role="group" aria-label="按仪器类型筛选">
+        <button type="button" class="ins-chip" data-type="全部" aria-pressed="true">全部</button>
+        <button type="button" class="ins-chip" data-type="直流电源" aria-pressed="false">直流电源</button>
+        <button type="button" class="ins-chip" data-type="万用表" aria-pressed="false">万用表</button>
+        <button type="button" class="ins-chip" data-type="示波器" aria-pressed="false">示波器</button>
+        <button type="button" class="ins-chip" data-type="信号发生器" aria-pressed="false">信号发生器</button>
+        <button type="button" class="ins-chip" data-type="LCR测试仪" aria-pressed="false">LCR 测试仪</button>
+        <button type="button" class="ins-chip" data-type="图示仪" aria-pressed="false">图示仪</button>
+      </div>
       <div class="ins-search">
         <label for="ins-q">搜仪器操作（试试：通断、限流、正弦波、探头补偿）</label>
         <input type="search" id="ins-q" placeholder="输入关键词，如：通断 / 限流 / 正弦波" autocomplete="off">
@@ -978,20 +1004,43 @@
 
       function render(list, q) {
         if (!list.length) {
+          var msg = q
+            ? "没有匹配「" + esc(q) + "」的操作。"
+            : "「" + esc(currentType) + "」下没有可显示的操作。";
           box.innerHTML =
-            '<li><div class="state-box"><b>没有匹配「' + esc(q) + '」的操作。</b><br>' +
-            "换个更短的关键词试试，比如：电压、通断、输出、校准。</div></li>";
+            '<li><div class="state-box"><b>' + msg + "</b><br>" +
+            "换个更短的关键词试试（如：电压、通断、输出），或点回「全部」。</div></li>";
           countEl.textContent = "0 条匹配结果";
           return;
         }
         box.innerHTML = list.map(itemHTML).join("");
-        countEl.textContent = q ? list.length + " 条匹配结果" : "共 " + list.length + " 条操作";
+        var filtered = q || currentType !== "全部";
+        countEl.textContent = filtered ? list.length + " 条匹配结果" : "共 " + list.length + " 条操作";
       }
+
+      // Day 12：类型筛选（与关键词搜索叠加：先按类型取池，再按关键词过滤）
+      var chips = Array.prototype.slice.call(document.querySelectorAll(".ins-chip"));
+      var currentType = "全部";
+
+      function applyType(btn) {
+        chips.forEach(function (c) {
+          c.setAttribute("aria-pressed", c === btn ? "true" : "false");
+        });
+        currentType = btn.getAttribute("data-type");
+        run();
+      }
+
+      chips.forEach(function (btn) {
+        btn.addEventListener("click", function () { applyType(btn); });
+      });
 
       function run() {
         var q = (input.value || "").trim().toLowerCase();
-        if (!q) { render(INSTRUMENT_OPS, ""); return; }
-        var hits = INSTRUMENT_OPS.filter(function (op) {
+        var pool = INSTRUMENT_OPS.filter(function (op) {
+          return currentType === "全部" || op.t.indexOf(currentType) > -1;
+        });
+        if (!q) { render(pool, ""); return; }
+        var hits = pool.filter(function (op) {
           if (op.title.toLowerCase().indexOf(q) > -1) { return true; }
           for (var i = 0; i < op.k.length; i++) {
             if (op.k[i].toLowerCase().indexOf(q) > -1) { return true; }
