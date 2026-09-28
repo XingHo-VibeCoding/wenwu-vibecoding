@@ -135,6 +135,8 @@
       animation: shimmer 1.1s infinite;
     }
     @keyframes shimmer { to { background-position: -200% 0; } }
+    /* Day 13：纵向骨架 —— 搜索 / 设备视图的加载态复用 .skel 方块，只是竖着排 */
+    .skel-col { display: flex; flex-direction: column; gap: 16px; }
 
     .state-box {
       padding: 34px 20px; text-align: center;
@@ -345,6 +347,74 @@
     .ins-chip:active { background: #d8eaf9; }
     .ins-chip[aria-pressed="true"] { color: #fff; background: var(--accent); }
 
+    /* ===== Day 13（F6）：视图路由 —— 三个视图装在同一份 index.html 里 =====
+       做法：section.view 默认 display:none，由 hash 路由给当前视图加 .is-active。
+       当前项用 aria-current="page" 同时承担「可访问性标注」与「视觉选中态」，不另开状态类。
+       按 skills/frontend-design-baseline/SKILL.md 核对：13px / 8 倍数间距 /
+       hover+active+focus-visible 三态 / 复用品牌蓝不开新色。 */
+    nav.views { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    nav.views a {
+      padding: 8px 16px;
+      font-size: 13px;
+      text-decoration: none;
+      color: var(--accent);
+      background: #fff;
+      border: 1px solid var(--accent);
+      border-radius: 999px;
+    }
+    nav.views a:hover { background: var(--accent-soft); }
+    nav.views a:active { background: #d8eaf9; }
+    nav.views a[aria-current="page"] { color: #fff; background: var(--accent); }
+
+    section.view { display: none; }
+    section.view.is-active { display: block; }
+
+    /* 传输视图内的任务导航（原页头按钮组迁入） */
+    .task-nav { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+
+    /* 搜索视图（F6）：两个搜索框 + 就地结果 */
+    section.searchpg {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 26px 28px;
+      margin-top: 20px;
+      scroll-margin-top: 20px;
+    }
+    section.searchpg h2 { margin: 0 0 4px; font-size: 20px; }
+    .sv-desc { margin: 0 0 16px; color: var(--muted); font-size: 14px; }
+    .sv-field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    .sv-field label { font-size: 13px; font-weight: 600; }
+    .sv-field input {
+      width: 100%;
+      padding: 10px 14px;
+      font-size: 14px;
+      color: var(--ink);
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+    .sv-field input:hover { border-color: #c8c5bd; }
+    .sv-field input:focus { border-color: var(--accent); }
+    .sv-result { margin-bottom: 24px; }
+    .sv-result:last-child { margin-bottom: 0; }
+    .sv-count { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+    ul.sv-list { margin: 0; padding: 0; list-style: none; }
+    ul.sv-list li { margin-bottom: 8px; }
+    ul.sv-list li:last-child { margin-bottom: 0; }
+    ul.sv-list a {
+      display: block;
+      padding: 10px 14px;
+      font-size: 14px;
+      text-decoration: none;
+      color: var(--ink);
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+    ul.sv-list a:hover { border-color: var(--accent); background: var(--accent-soft); }
+    ul.sv-list a b { color: var(--accent); }
+
     /* ===== 响应式断点（Day 10 起统一集中在此，位于所有主规则之后）=====
        原因：媒体查询不提升选择器特异性，同特异性时源码顺序在后者胜出。断点若写在主定义
        之前，窄屏样式会被后面的主规则反向覆盖 —— Day 9 的内边距修复就因此对
@@ -358,7 +428,7 @@
       html, body { overflow-x: hidden; }
       /* Day 9 修复①：窄屏内边距统一收窄（原先只有 .mainview 降了，其余板块仍是桌面 26–28px） */
       .wrap { padding: 16px 12px 48px; }
-      header.site, section.mainview, section.scene, section.resources, section.instruments { padding: 20px 16px; }
+      header.site, section.mainview, section.scene, section.resources, section.instruments, section.searchpg { padding: 20px 16px; }
       footer.site { padding: 16px; }
       /* Day 10：场景序号水印在窄屏缩小，避免压住标题 */
       .scene-no { font-size: 48px; top: 8px; right: 14px; }
@@ -368,39 +438,75 @@
 <body>
   <div class="wrap">
 
-    <!-- ① 页头：站点名 + 一句话定位 + 搜索框（F1a）+ 场景速查（F1b） -->
+    <!-- ① 页头：站点名 + 一句话定位 + 视图导航（F6，Day 13） -->
     <header class="site">
-      <span class="badge">MVP · 第 2 周 · Day 9</span>
+      <span class="badge">MVP · 第 2 周 · Day 13</span>
       <h1>电子设备使用指南</h1>
       <p class="tagline">写给用 Android 手机 + Windows 电脑的理工科学生：每件事分几步、每步多难、要多久，动手前先看清楚。</p>
 
-      <div class="search-row">
-        <div class="jump" aria-label="按任务跳转">
-          <form action="#scene-1"><button type="submit">实验数据传电脑</button></form>
-          <form action="#scene-1"><button type="submit">拍板书</button></form>
-          <form action="#scene-2"><button type="submit">交作业</button></form>
-          <form action="#scene-2"><button type="submit">电脑文件传回手机</button></form>
-          <form action="#scene-3"><button type="submit">大文件传输</button></form>
-          <form action="#scene-3"><button type="submit">传安装包</button></form>
-          <form action="#scene-4"><button type="submit">资料两端同步</button></form>
-          <form action="#scene-4"><button type="submit">同步笔记</button></form>
-        </div>
-        <nav class="quick" aria-label="场景速查">
-          <a href="#scene-1">S1 实验数据传电脑</a>
-          <a href="#scene-2">S2 电脑文件传回手机</a>
-          <a href="#scene-3">S3 大文件传输</a>
-          <a href="#scene-4">S4 资料两端同步</a>
-          <a href="#resources">资源入口</a>
-          <a href="#instruments">仪器速查</a>
-        </nav>
-      </div>
+      <nav class="views" aria-label="页面视图">
+        <a href="#/search">搜索</a>
+        <a href="#/transfer">传输指南</a>
+        <a href="#/device">设备指南</a>
+      </nav>
     </header>
 
+    <main>
+    <!-- 视图 1：搜索（F6，默认页）—— 两个搜索框，结果就地列出 -->
+    <section class="view is-active" id="view-search" aria-label="搜索">
+      <section class="searchpg">
+        <h2>搜索</h2>
+        <p class="sv-desc">两个搜索框各管一路：上面找「要办的事」，下面查「仪器怎么用」。全部本地数据，断网照常用。</p>
+        <div class="demo-bar" id="sv-demo" role="group" aria-label="搜索视图状态演示切换">
+          <span>状态演示：</span>
+          <button type="button" class="demo-btn" data-state="success">成功</button>
+          <button type="button" class="demo-btn" data-state="empty">空数据</button>
+          <button type="button" class="demo-btn" data-state="error">加载失败</button>
+        </div>
+        <div id="sv-state" aria-live="polite"><!-- 加载 / 空 / 错误三种状态渲染到这里 --></div>
+        <div id="sv-body">
+          <div class="sv-field">
+            <label for="sv-task">① 找任务 / 场景</label>
+            <input type="search" id="sv-task" placeholder="如：拍板书 / 交作业 / 大文件" autocomplete="off">
+          </div>
+          <div class="sv-result" id="sv-task-result" aria-live="polite"></div>
+
+          <div class="sv-field">
+            <label for="sv-ins">② 找仪器操作</label>
+            <input type="search" id="sv-ins" placeholder="如：通断 / 限流 / 正弦波" autocomplete="off">
+          </div>
+          <div class="sv-result" id="sv-ins-result" aria-live="polite"></div>
+        </div>
+      </section>
+    </section>
+
+    <!-- 视图 2：传输指南（F6）—— 场景总览 + S1–S4 分步详情 + 资源入口 -->
+    <section class="view" id="view-transfer" aria-label="手机与电脑传输指南">
     <!-- ①b 主视图（Day 8）：mock 数据渲染，加载 / 成功 / 空 / 错误四种状态 -->
     <section class="mainview" id="mainview">
       <div class="mv-head">
         <h2>今天要解决什么？</h2>
-        <p class="mv-desc">四个高频场景一目了然，点卡片直达下方分步教程。下方演示四种页面状态（本地假数据，不联网）。</p>
+        <p class="mv-desc">四个高频场景一目了然，点卡片直达下方分步教程。也可以按任务直达，或演示四种页面状态（本地假数据，不联网）。</p>
+        <div class="task-nav">
+          <div class="jump" aria-label="按任务跳转">
+            <form action="#/transfer/scene-1"><button type="submit">实验数据传电脑</button></form>
+            <form action="#/transfer/scene-1"><button type="submit">拍板书</button></form>
+            <form action="#/transfer/scene-2"><button type="submit">交作业</button></form>
+            <form action="#/transfer/scene-2"><button type="submit">电脑文件传回手机</button></form>
+            <form action="#/transfer/scene-3"><button type="submit">大文件传输</button></form>
+            <form action="#/transfer/scene-3"><button type="submit">传安装包</button></form>
+            <form action="#/transfer/scene-4"><button type="submit">资料两端同步</button></form>
+            <form action="#/transfer/scene-4"><button type="submit">同步笔记</button></form>
+          </div>
+          <nav class="quick" aria-label="场景速查">
+            <a href="#/transfer/scene-1">S1 实验数据传电脑</a>
+            <a href="#/transfer/scene-2">S2 电脑文件传回手机</a>
+            <a href="#/transfer/scene-3">S3 大文件传输</a>
+            <a href="#/transfer/scene-4">S4 资料两端同步</a>
+            <a href="#/transfer/resources">资源入口</a>
+            <a href="#/device/instruments">仪器速查</a>
+          </nav>
+        </div>
         <div class="demo-bar" role="group" aria-label="页面状态演示切换">
           <span>状态演示：</span>
           <button type="button" class="demo-btn" data-state="success">成功</button>
@@ -568,11 +674,22 @@
         <li><a href="https://help.jianguoyun.com" target="_blank" rel="noopener">坚果云帮助中心</a> —— 国内同步盘官方文档，对网速敏感时的 OneDrive 替代 <button class="copy-btn" type="button" data-copy="https://help.jianguoyun.com" aria-live="polite">复制</button></li>
       </ul>
     </section>
+    </section>
+    <!-- /视图 2 传输指南 -->
 
-    <!-- ④ 仪器速查（F5，v1.4）：34 条操作条目由 JS 渲染，本地关键词过滤，零网络请求 -->
+    <!-- 视图 3：设备指南（F6）—— 仪器速查（F5）：34 条操作条目由 JS 渲染，本地关键词过滤，零网络请求 -->
+    <section class="view" id="view-device" aria-label="电子设备使用指南">
     <section class="instruments" id="instruments">
       <h2>仪器速查</h2>
       <p class="ins-desc">6 台实验室常用仪器的 34 条常用操作（提炼自厂商说明书，标注出处页码）。点下方按钮按仪器类型筛选，或输入关键词实时过滤——纯本地，断网照常用。</p>
+      <div class="demo-bar" id="ins-demo" role="group" aria-label="设备视图状态演示切换">
+        <span>状态演示：</span>
+        <button type="button" class="demo-btn" data-state="success">成功</button>
+        <button type="button" class="demo-btn" data-state="empty">空数据</button>
+        <button type="button" class="demo-btn" data-state="error">加载失败</button>
+      </div>
+      <div id="ins-state" aria-live="polite"><!-- 加载 / 空 / 错误三种状态渲染到这里 --></div>
+      <div id="ins-body">
       <div class="ins-filter" role="group" aria-label="按仪器类型筛选">
         <button type="button" class="ins-chip" data-type="全部" aria-pressed="true">全部</button>
         <button type="button" class="ins-chip" data-type="直流电源" aria-pressed="false">直流电源</button>
@@ -588,13 +705,18 @@
       </div>
       <p class="ins-count" id="ins-count" aria-live="polite">共 34 条操作</p>
       <ol class="ins-list" id="ins-results"><!-- 条目由 JS 渲染到这里 --></ol>
+      </div><!-- /ins-body -->
     </section>
+    </section>
+    <!-- /视图 3 设备指南 -->
 
-    <!-- ⑤ 页脚 -->
+    </main>
+
+    <!-- ⑥ 页脚 -->
     <footer class="site">
       <p><b>卡住了找谁：</b>照做失败时，先回到对应步骤的"注意事项"检查；仍解决不了，用"资源入口"里的官方支持页搜索报错信息。</p>
       <p><b>难度与耗时说明：</b>所有星级与分钟数均以实际操作实测为准，未实测的步骤标注「待实测」——本站不填估算值。</p>
-      <p><b>更新日期：</b>2026-09-26 ｜ <b>本期范围：</b>Android + Windows，评论/投票/登录等功能本期不做。</p>
+      <p><b>更新日期：</b>2026-09-28 ｜ <b>本期范围：</b>Android + Windows，评论/投票/登录等功能本期不做。</p>
     </footer>
 
   </div>
@@ -637,7 +759,8 @@
     };
 
     const statusBox = document.getElementById("mv-status");
-    const demoBtns = Array.from(document.querySelectorAll(".demo-btn"));
+    // Day 13 起页面有 3 组状态演示按钮，必须限定在本视图内，否则会把别的视图的按钮也绑上
+    const demoBtns = Array.from(document.querySelectorAll("#mainview .demo-btn"));
     const LOAD_DELAY = 800; // 模拟网络延迟：让「加载中」肉眼可见
 
     function skeletonHTML() {
@@ -681,14 +804,14 @@
 
     function showEmpty() {
       statusBox.innerHTML =
-        '<div class="state-box"><b>内容整理中。</b><br>' +
-        "场景清单暂时是空的——不是你操作错了，换一份数据再试试。</div>";
+        '<div class="state-box"><b>场景清单整理中。</b><br>' +
+        "四个场景正在补齐，稍后回来看看。</div>";
     }
 
     function showError() {
       statusBox.innerHTML =
-        '<div class="state-box state-box--error"><b>加载失败（模拟）。</b><br>' +
-        "真实场景里，这可能是网络断了或服务不可用——第 3 周接上真实 API 后，这个状态就有实际用处了。<br>" +
+        '<div class="state-box state-box--error"><b>场景清单加载失败（模拟）。</b><br>' +
+        "真实场景里，这可能是网络断了或服务不可用——第 3 周接上真实 API 后就有实际用处了。<br>" +
         '<button type="button" class="retry-btn" id="mv-retry">重试</button></div>';
       document.getElementById("mv-retry").addEventListener("click", () => runLoad(currentForce));
     }
@@ -705,7 +828,7 @@
 
     demoBtns.forEach(b => b.addEventListener("click", () => runLoad(b.dataset.state)));
 
-    // 支持 ?state=empty / ?state=error / ?state=success 直达（截图演示用）；无参数走正常流程
+    // 支持 ?state=empty / ?state=error / ?state=success 直达（截图演示用；Day 13 起作用于全部三个视图）；无参数走正常流程
     const urlState = new URLSearchParams(location.search).get("state");
     runLoad(["empty", "error", "success"].indexOf(urlState) > -1 ? urlState : null);
 
@@ -768,6 +891,32 @@
         });
       });
     })();
+
+    /* ===== Day 13：条目转义与渲染提为顶层函数 =====
+       起因：搜索视图（F6）要渲染同一批仪器条目，若各写一份标记就会有两处真相。
+       函数声明会提升，因此放在 INSTRUMENT_OPS 之前、IIFE 之内都能调用。 */
+    function esc(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function itemHTML(op) {
+      return (
+        '<li class="ins-item">' +
+          '<div class="ins-item-head">' +
+            '<span class="ins-tag">' + esc(op.t) + "</span>" +
+            "<h3>" + esc(op.title) + "</h3>" +
+          "</div>" +
+          '<ol class="ins-steps">' +
+            op.steps.map(function (s) { return "<li>" + esc(s) + "</li>"; }).join("") +
+          "</ol>" +
+          '<p class="ins-src">出处：' + esc(op.src) + "</p>" +
+        "</li>"
+      );
+    }
 
     /* ===== v1.4（F5）：仪器速查搜索 =====
        34 条操作条目提炼自 6 份厂商说明书（GPS-2303C / GDM-8341 / GDS-1102B /
@@ -979,28 +1128,7 @@
       var countEl = document.getElementById("ins-count");
       var input = document.getElementById("ins-q");
 
-      function esc(s) {
-        return String(s)
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;");
-      }
-
-      function itemHTML(op) {
-        return (
-          '<li class="ins-item">' +
-            '<div class="ins-item-head">' +
-              '<span class="ins-tag">' + esc(op.t) + "</span>" +
-              "<h3>" + esc(op.title) + "</h3>" +
-            "</div>" +
-            '<ol class="ins-steps">' +
-              op.steps.map(function (s) { return "<li>" + esc(s) + "</li>"; }).join("") +
-            "</ol>" +
-            '<p class="ins-src">出处：' + esc(op.src) + "</p>" +
-          "</li>"
-        );
-      }
+      /* esc / itemHTML 已提到顶层（见上），设备视图与搜索视图共用同一份渲染 */
 
       function render(list, q) {
         if (!list.length) {
@@ -1053,6 +1181,204 @@
       input.addEventListener("input", run);
       render(INSTRUMENT_OPS, ""); // 初始：显示全部 34 条（AC-14①）
     })();
+
+    /* ===== Day 13（F6）：hash 路由 —— 多级切换的全部实现 =====
+       路径：#/search（默认）｜ #/transfer ｜ #/device，子锚点写进路径，如 #/transfer/scene-1。
+       为什么不用路由库：清单"够用就好"——只有 3 个视图、无嵌套、无动态参数，手写十几行足够。
+       为什么不建三个 .html：PRD AC-12 硬约束「除 index.html 外无其他 HTML 文件」（否决式验收）。
+       为什么不复用原生锚点：hash 路由与原生锚点不能共用同一个 #，故锚点改为路径的一段，
+       由路由解析后自己 scrollIntoView。 */
+    (function () {
+      var VIEWS = ["search", "transfer", "device"];
+      var DEFAULT_VIEW = "search";
+      var TITLES = { search: "搜索", transfer: "传输指南", device: "设备指南" };
+      var links = Array.prototype.slice.call(document.querySelectorAll("nav.views a"));
+
+      function parse(hash) {
+        var parts = String(hash || "").replace(/^#\/?/, "").split("/").filter(function (s) { return s.length > 0; });
+        var view = parts[0] && VIEWS.indexOf(parts[0]) > -1 ? parts[0] : DEFAULT_VIEW;
+        return { view: view, anchor: parts[1] || "" };
+      }
+
+      function apply() {
+        var r = parse(location.hash);
+        VIEWS.forEach(function (v) {
+          var el = document.getElementById("view-" + v);
+          if (el) { el.classList.toggle("is-active", v === r.view); }
+        });
+        links.forEach(function (a) {
+          if (parse(a.getAttribute("href")).view === r.view) { a.setAttribute("aria-current", "page"); }
+          else { a.removeAttribute("aria-current"); }
+        });
+        document.title = "电子设备使用指南 · " + TITLES[r.view];
+        var target = r.anchor ? document.getElementById(r.anchor) : null;
+        if (target) { target.scrollIntoView(); } else { window.scrollTo(0, 0); }
+      }
+
+      // 无 hash（首次打开 / 双击文件）时补上默认地址，让地址栏可见、可收藏
+      if (!location.hash) { location.replace("#/" + DEFAULT_VIEW); }
+      window.addEventListener("hashchange", apply);
+      apply();
+    })();
+
+    /* ===== Day 13（F6）：搜索视图 —— 两个搜索框 =====
+       ① 任务/场景：搜 8 个任务别名 + 4 个场景名/描述/方法，命中项跳到 #/transfer/scene-N
+       ② 仪器操作：搜 34 条条目（复用顶层 itemHTML），就地列出完整步骤
+       纯本地包含匹配，零网络请求。四状态在同一板块补齐。 */
+    const TASK_INDEX = [
+      { label: "实验数据传电脑", scene: "scene-1" },
+      { label: "拍板书", scene: "scene-1" },
+      { label: "交作业", scene: "scene-2" },
+      { label: "电脑文件传回手机", scene: "scene-2" },
+      { label: "大文件传输", scene: "scene-3" },
+      { label: "传安装包", scene: "scene-3" },
+      { label: "资料两端同步", scene: "scene-4" },
+      { label: "同步笔记", scene: "scene-4" }
+    ];
+
+    (function () {
+      var taskInput = document.getElementById("sv-task");
+      var taskBox = document.getElementById("sv-task-result");
+      var insInput = document.getElementById("sv-ins");
+      var insBox = document.getElementById("sv-ins-result");
+      if (!taskInput || !insInput || !taskBox || !insBox) { return; }
+
+      function sceneOf(anchor) {
+        for (var i = 0; i < MOCK.scenes.length; i++) {
+          if (MOCK.scenes[i].anchor === anchor) { return MOCK.scenes[i]; }
+        }
+        return null;
+      }
+
+      function renderTasks(q) {
+        if (!q) {
+          taskBox.innerHTML = '<p class="sv-count">输入关键词开始搜索——试试「拍板书」「交作业」「大文件」。</p>';
+          return;
+        }
+        var hits = TASK_INDEX.filter(function (t) {
+          var s = sceneOf(t.scene);
+          var hay = (t.label + " " + (s ? s.no + " " + s.name + " " + s.desc + " " + s.method : "")).toLowerCase();
+          return hay.indexOf(q) > -1;
+        });
+        if (!hits.length) {
+          taskBox.innerHTML =
+            '<div class="state-box"><b>没有匹配「' + esc(q) + "」的任务。</b><br>" +
+            "换个更短的关键词试试，比如：拍板书、交作业、同步。</div>";
+          return;
+        }
+        taskBox.innerHTML =
+          '<p class="sv-count">' + hits.length + " 条任务匹配</p>" +
+          '<ul class="sv-list">' +
+            hits.map(function (t) {
+              var s = sceneOf(t.scene);
+              return '<li><a href="#/transfer/' + t.scene + '"><b>' + esc(t.label) + "</b> → " +
+                esc(s ? s.no + " " + s.name : t.scene) + "</a></li>";
+            }).join("") +
+          "</ul>";
+      }
+
+      function renderIns(q) {
+        if (!q) {
+          insBox.innerHTML = '<p class="sv-count">输入关键词开始搜索——试试「通断」「限流」「正弦波」「探头补偿」。</p>';
+          return;
+        }
+        var hits = INSTRUMENT_OPS.filter(function (op) {
+          if (op.title.toLowerCase().indexOf(q) > -1) { return true; }
+          for (var i = 0; i < op.k.length; i++) {
+            if (op.k[i].toLowerCase().indexOf(q) > -1) { return true; }
+          }
+          return false;
+        });
+        if (!hits.length) {
+          insBox.innerHTML =
+            '<div class="state-box"><b>没有匹配「' + esc(q) + "」的操作。</b><br>" +
+            "换个更短的关键词试试，比如：电压、通断、输出。</div>";
+          return;
+        }
+        insBox.innerHTML =
+          '<p class="sv-count">' + hits.length + " 条操作匹配</p>" +
+          '<ol class="ins-list">' + hits.map(itemHTML).join("") + "</ol>";
+      }
+
+      taskInput.addEventListener("input", function () {
+        renderTasks((taskInput.value || "").trim().toLowerCase());
+      });
+      insInput.addEventListener("input", function () {
+        renderIns((insInput.value || "").trim().toLowerCase());
+      });
+      renderTasks("");
+      renderIns("");
+    })();
+
+    /* ===== Day 13 板块③：搜索 / 设备两个视图补齐四状态 =====
+       关键取舍：不销毁节点 —— 状态区（#sv-state / #ins-state）与内容区（#sv-body / #ins-body）
+       用 hidden 属性互斥显隐。若用 innerHTML 重建内容区，搜索框和筛选按钮的事件监听会丢。
+       传输视图的四状态 Day 8 已有（#mainview 自带一套），此处不重做，只对齐文案。
+       ?state= 直达对三个视图同时生效（截图演示用）。 */
+    function stateSkeletonHTML(count) {
+      var blocks = "";
+      for (var i = 0; i < count; i++) { blocks += '<div class="skel"></div>'; }
+      return '<div class="skel-col">' + blocks + "</div>";
+    }
+
+    function makeStateView(opts) {
+      var body = opts.body ? document.getElementById(opts.body) : null;
+      var state = document.getElementById(opts.state);
+      if (!state || (opts.body && !body)) { return null; }
+      var bar = opts.demoBar ? document.getElementById(opts.demoBar) : null;
+      var btns = bar ? Array.prototype.slice.call(bar.querySelectorAll(".demo-btn")) : [];
+      var current = ["empty", "error", "success"].indexOf(urlState) > -1 ? urlState : null;
+
+      function show(kind) {
+        if (kind === "success") {
+          body.hidden = false;
+          state.innerHTML = "";
+          return;
+        }
+        body.hidden = true;
+        if (kind === "loading") {
+          state.innerHTML = stateSkeletonHTML(opts.skeleton || 3);
+        } else if (kind === "empty") {
+          state.innerHTML = '<div class="state-box"><b>' + opts.emptyTitle + "</b><br>" + opts.emptyText + "</div>";
+        } else {
+          state.innerHTML =
+            '<div class="state-box state-box--error"><b>' + opts.errorTitle + "</b><br>" + opts.errorText + "<br>" +
+            '<button type="button" class="retry-btn">重试</button></div>';
+          state.querySelector(".retry-btn").addEventListener("click", function () { run(current); });
+        }
+      }
+
+      function run(force) {
+        if (arguments.length) { current = force; }
+        btns.forEach(function (b) {
+          b.classList.toggle("active", b.dataset.state === (current || "success"));
+        });
+        show("loading");
+        setTimeout(function () { show(current || "success"); }, opts.delay || LOAD_DELAY);
+      }
+
+      btns.forEach(function (b) {
+        b.addEventListener("click", function () { run(b.dataset.state); });
+      });
+      run(); // 初始：加载中 → 成功（或 ?state= 指定的演示态）
+      return { run: run };
+    }
+
+    makeStateView({
+      body: "ins-body", state: "ins-state", demoBar: "ins-demo", skeleton: 3,
+      emptyTitle: "暂无仪器操作条目。",
+      emptyText: "6 台仪器的常用操作正在整理中，稍后回来看看。",
+      errorTitle: "仪器数据加载失败（模拟）。",
+      errorText: "本地数据不该失败——这是演示用的错误态，第 3 周接上真实 API 后就有实际用处。"
+    });
+
+    makeStateView({
+      body: "sv-body", state: "sv-state", demoBar: "sv-demo", skeleton: 3,
+      emptyTitle: "暂无可搜索的内容。",
+      emptyText: "任务与仪器条目正在整理中，稍后回来看看。",
+      errorTitle: "搜索索引加载失败（模拟）。",
+      errorText: "本地数据不该失败——这是演示用的错误态。"
+    });
   </script>
 </body>
 </html>
