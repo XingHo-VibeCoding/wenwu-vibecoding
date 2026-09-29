@@ -415,6 +415,29 @@
     ul.sv-list a:hover { border-color: var(--accent); background: var(--accent-soft); }
     ul.sv-list a b { color: var(--accent); }
 
+    /* ===== Day 14 最小修复：回到顶部浮动按钮 =====
+       来源：同伴测试反馈 P1（原话「每次回到最上层都要手动划，没有快捷方式」）。
+       做法：滚过 400px 才出现，短页面不常驻；点击平滑回顶，尊重"减少动效"偏好。 */
+    .totop {
+      display: none;
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 20;
+      padding: 8px 16px;
+      font-family: inherit;
+      font-size: 13px;
+      color: var(--accent);
+      background: #fff;
+      border: 1px solid var(--accent);
+      border-radius: 999px;
+      box-shadow: 0 2px 10px rgba(24, 95, 165, 0.18);
+      cursor: pointer;
+    }
+    .totop.is-on { display: inline-flex; align-items: center; }
+    .totop:hover { background: var(--accent-soft); }
+    .totop:active { background: #d8eaf9; }
+
     /* ===== 响应式断点（Day 10 起统一集中在此，位于所有主规则之后）=====
        原因：媒体查询不提升选择器特异性，同特异性时源码顺序在后者胜出。断点若写在主定义
        之前，窄屏样式会被后面的主规则反向覆盖 —— Day 9 的内边距修复就因此对
@@ -718,6 +741,9 @@
       <p><b>难度与耗时说明：</b>所有星级与分钟数均以实际操作实测为准，未实测的步骤标注「待实测」——本站不填估算值。</p>
       <p><b>更新日期：</b>2026-09-28 ｜ <b>本期范围：</b>Android + Windows，评论/投票/登录等功能本期不做。</p>
     </footer>
+
+    <!-- 回到顶部（Day 14 最小修复）：滚过 400px 才出现，点击回到页面顶部 -->
+    <button type="button" class="totop" id="totop" aria-label="回到页面顶部">↑ 回到顶部</button>
 
   </div>
 
@@ -1379,6 +1405,32 @@
       errorTitle: "搜索索引加载失败（模拟）。",
       errorText: "本地数据不该失败——这是演示用的错误态。"
     });
+
+    /* ===== Day 14 最小修复：回到顶部浮动按钮 =====
+       行程阈值 400px：约过一屏才出现，避免短页面上常驻碍眼。
+       视图切换（路由）会滚到页顶并触发 scroll，按钮自动隐藏，无需另接逻辑。 */
+    (function () {
+      var btn = document.getElementById("totop");
+      if (!btn) { return; }
+      var SHOW_AT = 400;
+
+      function sync() {
+        if (window.pageYOffset > SHOW_AT) { btn.classList.add("is-on"); }
+        else { btn.classList.remove("is-on"); }
+      }
+
+      window.addEventListener("scroll", sync, { passive: true });
+      sync(); // 初始：若带锚点直接落在页面中段，也要正确显示
+
+      btn.addEventListener("click", function () {
+        var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (reduce) { window.scrollTo(0, 0); }
+        else { window.scrollTo({ top: 0, behavior: "smooth" }); }
+        // 按钮随后会隐藏，把焦点交给页头视图导航，避免焦点落在已隐藏元素上
+        var back = document.querySelector("nav.views a");
+        if (back) { back.focus({ preventScroll: true }); }
+      });
+    })();
   </script>
 </body>
 </html>
