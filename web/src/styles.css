@@ -1,0 +1,260 @@
+/* 《电子设备使用指南》React 版样式（Day 15 板块③）
+ *
+ * 设计基线来自 skills/frontend-design-baseline/SKILL.md（Day 9 定稿，本项目 Skill）：
+ *   1) 对比度 WCAG 2.1 AA：正文/小字 ≥4.5:1，组件边界 ≥3:1
+ *   2) 文字 ≥13px
+ *   3) 间距全取 8 的倍数
+ *   4) 可交互元素 hover / active / focus-visible 三态齐备
+ *
+ * 下列配色的对比度均为本机实测（.workbuddy/contrast.js + contrast2.js，WCAG 公式）：
+ *   正文 #24211c on 白 ......... 16.04:1
+ *   小字 #5c5a55 on 白 ......... 6.89:1 ｜ on 页底 6.37:1
+ *   品牌蓝 #185fa5 on 白 ....... 6.52:1 ｜ on 页底 6.04:1
+ *   白字 on #185fa5 ............ 6.52:1
+ *   边框 #8f887a vs 页底 ....... 3.25:1 ｜ vs 白 3.52:1
+ *   错误红 #9c3a3a on #fdf3f3 .. 6.26:1
+ *   成功绿 #1c7a43 on #e6f6ec .. 4.79:1
+ *   星级橙 #946200 on 白 ....... 5.24:1
+ */
+
+:root {
+  --bg: #f7f6f3;
+  --card: #ffffff;
+  --text: #24211c;
+  --muted: #5c5a55;
+  --line: #8f887a;
+  --accent: #185fa5;
+  --accent-soft: #e8f1fa;
+  --accent-deep: #0f4a83;
+  --error-fg: #9c3a3a;
+  --error-bg: #fdf3f3;
+  --ok-fg: #1c7a43;
+  --ok-bg: #e6f6ec;
+  --star: #946200;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.7;
+  font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+.wrap { max-width: 880px; margin: 0 auto; padding: 0 0 32px; }
+
+/* ===== 页头 ===== */
+header.site {
+  padding: 24px 16px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+}
+
+.badge {
+  display: inline-block;
+  font-size: 13px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 8px;
+}
+
+header.site h1 { font-size: 26px; margin: 8px 0; }
+
+.tagline { font-size: 13px; color: var(--muted); margin: 0 0 16px; }
+
+/* 视图导航：三个 Tab，选中态用 aria-current="page" */
+nav.views { display: flex; flex-wrap: wrap; gap: 8px; }
+
+nav.views a {
+  font-size: 13px;
+  text-decoration: none;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 4px 16px;
+  background: var(--card);
+}
+
+nav.views a:hover { background: var(--accent-soft); }
+nav.views a:active { background: #d8eaf9; }
+nav.views a[aria-current="page"] { background: var(--accent); color: #fff; }
+
+/* ===== 主区通用 ===== */
+main { padding: 0 16px; }
+
+section.view {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px 0;
+}
+
+section.view h2 { font-size: 18px; margin: 0 0 8px; }
+section.view h2 + p { margin-top: 0; }
+
+.sv-desc, .mv-desc, .ins-desc { font-size: 13px; color: var(--muted); margin: 0 0 16px; }
+
+/* ===== 搜索框 ===== */
+.sv-field { margin-bottom: 8px; }
+
+.sv-field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+
+.sv-field input {
+  width: 100%;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text);
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+}
+
+.sv-field input:hover { border-color: var(--accent); }
+.sv-field input:focus { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 1px; }
+.sv-field input::placeholder { color: var(--muted); font-size: 13px; }
+
+/* ===== 搜索结果 ===== */
+.sv-result { margin: 0 0 16px; }
+
+.sv-hint { font-size: 13px; color: var(--muted); margin: 0; }
+
+.sv-count { font-size: 13px; color: var(--muted); margin: 0 0 8px; }
+
+ul.sv-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+
+ul.sv-list a {
+  display: block;
+  font-size: 13px;
+  text-decoration: none;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 16px;
+}
+
+ul.sv-list a:hover { border-color: var(--accent); background: var(--accent-soft); }
+ul.sv-list a:active { background: #d8eaf9; }
+ul.sv-list a b { color: var(--accent); }
+
+/* ===== 场景卡片 ===== */
+ul.mv-cards { list-style: none; margin: 0 0 24px; padding: 0; display: grid; gap: 16px; }
+
+a.mv-card {
+  display: block;
+  text-decoration: none;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--card);
+}
+
+a.mv-card:hover { border-color: var(--accent); background: var(--accent-soft); }
+a.mv-card:active { background: #d8eaf9; }
+a.mv-card h3 { font-size: 15px; margin: 8px 0; }
+
+.mv-card-no { font-size: 13px; color: var(--star); font-weight: 700; }
+
+a.mv-card p { font-size: 13px; color: var(--muted); margin: 0; }
+
+.mv-card-meta { margin-top: 8px !important; }
+
+/* ===== 资源列表 ===== */
+ul.res-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+
+ul.res-list li {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+ul.res-list a { color: var(--accent); font-weight: 700; }
+ul.res-list a:hover { text-decoration-thickness: 2px; }
+ul.res-list a:active { color: var(--accent-deep); }
+
+.res-use { color: var(--muted); margin-left: 8px; }
+
+/* ===== 仪器筛选按钮 ===== */
+.ins-filter { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+
+.ins-chip {
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--accent);
+  background: var(--card);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 4px 16px;
+  cursor: pointer;
+}
+
+.ins-chip:hover { background: var(--accent-soft); }
+.ins-chip:active { background: #d8eaf9; }
+.ins-chip[aria-pressed="true"] { color: #fff; background: var(--accent); }
+
+.ins-count { font-size: 13px; color: var(--muted); margin: 0 0 8px; }
+
+/* ===== 操作条目 ===== */
+ul.ins-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+
+.ins-item { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+
+.ins-item-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+.ins-tag {
+  font-size: 13px;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 4px;
+  padding: 0 8px;
+}
+
+.ins-item-head h3 { font-size: 15px; margin: 0; }
+
+ol.ins-steps { margin: 8px 0 0; padding-left: 24px; font-size: 13px; }
+
+ol.ins-steps li { margin-bottom: 4px; }
+
+.ins-src { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+
+/* ===== 空态 ===== */
+.state-box {
+  border: 1px solid var(--error-fg);
+  background: var(--error-bg);
+  color: var(--error-fg);
+  border-radius: 8px;
+  padding: 16px;
+  font-size: 13px;
+}
+
+/* ===== 页脚 ===== */
+footer.site {
+  padding: 16px;
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+footer.site p { margin: 4px 0; }
+
+/* ===== 键盘焦点（全局，与第 2 周静态站做法一致）===== */
+a:focus-visible, button:focus-visible, input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ===== 窄屏 ===== */
+@media (max-width: 640px) {
+  header.site, section.view, footer.site { padding: 16px; }
+  main { padding: 0 8px; }
+  .res-use { display: block; margin-left: 0; }
+}

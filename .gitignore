@@ -8,6 +8,10 @@
 # ===== 依赖目录 =====
 node_modules/
 
+# ===== React 版构建产物（Day 15 起：web/ 由 Vite 构建，产物上传 CloudBase，不入库）=====
+web/dist/
+web/dist.zip
+
 # ===== 本地工作记录（含个人笔记，不公开）=====
 .workbuddy/
 
