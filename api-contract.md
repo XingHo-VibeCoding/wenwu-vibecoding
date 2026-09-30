@@ -2,7 +2,7 @@
 
 > **Day 15 产出** ｜ 2026-09-30 ｜ Vibe Coding 五步工作流 · 第 3 周第 1 天
 >
-> **本文档的依据**：`PRD.md` v1.5 第 6 节「数据字段」+ `TECH_DESIGN.md` v1.4 第 3 节「数据模型」+ `web/src/data/mock.js`（Day 15 程序化提取的真实数据）+ `cloudfunctions/health/README.md`（已上线口径）。
+> **本文档的依据**：`PRD.md` **v2.0** 第 6 节「数据字段」+ `TECH_DESIGN.md` **v2.0** 第 3 节「数据模型」+ `web/src/data/mock.js`（Day 15 程序化提取的真实数据）+ `cloudfunctions/health/README.md`（已上线口径）。
 > **本文档的读者**：Day 16 建表的我、Day 17–19 写接口的我、Day 20 联调的我。
 > **一句话总纲**：**契约先定，实现后填**——今天只有 `/api/health` 是真在跑的，其余全部是**占位契约**，等 Day 16 建表、Day 17 起逐个点亮。
 >
