@@ -1,6 +1,6 @@
 ---
 name: cloudbase-postgres-ops
-description: 在腾讯云开发 CloudBase 的 PostgreSQL 上做建表 / 灌种子 / 跑验证查询的完整流程与硬规则。当任务涉及「建表、写 SQL、跑 select 验证、改表结构、往库里灌数据、查表数据」时使用。含控制台入口路径、两段式脚本约定、字段命名避坑、破坏性操作提示的处理方式、行数核对与关联验证模板、以及本项目踩过的环境坑。
+description: 在腾讯云开发 CloudBase 的 PostgreSQL 上做建表 / 灌种子 / 跑验证查询 / 让云函数零依赖读库的完整流程与硬规则。当任务涉及「建表、写 SQL、跑 select 验证、改表结构、往库里灌数据、写读接口、云函数连数据库、配 GRANT / anon 角色、HTTP 网关路由」时使用。含控制台入口路径、两段式脚本约定、字段命名避坑、破坏性操作提示的处理、行数核对与关联验证模板、PostgreSQL REST API 接线（Key / GRANT / 网关剥前缀）、以及本项目踩过的环境坑。
 agent_created: true
 ---
 
@@ -108,3 +108,46 @@ GROUP BY s.no, s.name ORDER BY s.no;
 - [ ] 脚本可重复执行（再跑一遍不报错）
 - [ ] 表结构已回写 `api-contract.md`，契约与库一致
 - [ ] 交付截图：数据编辑器里的表名 + ≥5 行数据
+
+---
+
+## 9. 云函数零依赖读库：走 PostgreSQL REST API（Day 17 跑通）
+
+**不要装 `pg` 驱动**——它要改 `package.json`，而模板 `package.json` 一改就挂 `InvalidParameter.Dependency`。改走 **PostgREST 风格的 HTTP API**，用 Node 18+ 的全局 `fetch`，零依赖。
+
+```
+函数 → https://{envId}.api.tcloudbasegateway.com/v1/rdb/rest/{table}
+```
+
+- ⚠️ **第三个域名**，与静态托管 `.tcloudbaseapp.com`、云函数网关 `.app.tcloudbase.com` 都不同，别串。
+- 过滤走查询参数（天然参数化防注入）：`?id=eq.scene-1&select=*&order=no.asc`；模糊 `like.*x*`；关联 `select=*,steps(*)`。
+- 只支持 `public` schema（用 `information_schema.tables` 先确认表在 public）。
+- 需要 Node 18+ 才有全局 `fetch`（本项目运行时 Node.js 20.19）。
+
+### 鉴权与权限（两层必须都过）
+
+1. **Key**：用 `Publishable Key`（角色 `anon`，不过期、可公开程度高），经**云函数环境变量**注入（本项目变量名 `PUBLISHABLE_KEY`），严禁进代码 / Git / 聊天 / 前端。`API Key`（`service_role`，BYPASSRLS）权限过大，只读公开站不必用。
+2. **表级 GRANT**（`anon` 默认对业务表无权限，不授权接口必 403）：
+
+```sql
+GRANT USAGE ON SCHEMA public TO anon;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
+```
+
+- **SQL 编辑器会对 `anon` 弹「检测到 Supabase 内置角色」警告 → 假警报**，点「仍然执行」。验证方式：`SELECT rolname FROM pg_roles`（本项目实测 `anon` / `authenticated` / `service_role` 均存在，其余是 `cloudbase_*` 管理员角色）。
+
+### 🔑 最反直觉的一条：网关会把路由前缀剥掉再交给函数
+
+| 浏览器访问 | 函数收到的 `pathname` |
+|---|---|
+| `/api/scenes` | `/` |
+| `/api/scenes/scene-1` | `/scene-1` |
+
+- 即**网关按路由前缀匹配，然后把前缀从路径中删除**再转发。所以函数里的路由解析必须按"剥掉前缀后的路径"写；稳妥做法是**两种形态都兼容**。
+- `health` 那类不读路径的函数永远发现不了这条，写第一个真正解析路径的接口时才会撞上。
+- **定位手法**：临时加 `?debug=1` 分支回吐 `req.url` / `pathname` / `method`，实测完**务必删掉**再交付——比猜路径快得多。
+
+### 接口自检与复核（比"部署成功"可信）
+
+- 错的报错分层读：`config_error`（环境变量没读到）/ `internal_error`（REST 调用失败：Key 值、GRANT）/ `invalid_path`（路径没匹配，属函数自己的响应，说明路由是通的）/ 非 JSON 的 404（请求没进函数，网关层）。
+- **复核别只信屏幕**：用 python `urllib` 抓 bytes 并**显式 `.decode("utf-8")`**（PowerShell 的 `.Content` 会把中文解成乱码），打印状态码 / Content-Type / 字节数；**字段级比对**则用 `json.loads` 后打印 `sorted(keys)`，与 `db/schema.sql` 的列名做**差集**——只盯着返回内容看，少了字段是看不出来的。
