@@ -21,7 +21,22 @@ const MSG = {
   scene_not_found: "\u627e\u4e0d\u5230\u8fd9\u4e2a\u573a\u666f\u3002\u5f53\u524d\u6709 scene-1 \u81f3 scene-4 \u5171 4 \u4e2a\u573a\u666f",
   method_not_allowed: "\u672c\u63a5\u53e3\u53ea\u63a5\u53d7 GET \u8bf7\u6c42",
   config_error: "\u670d\u52a1\u7aef\u914d\u7f6e\u7f3a\u5931\uff0c\u8bf7\u8054\u7cfb\u7ef4\u62a4\u8005",
-  internal_error: "\u670d\u52a1\u7aef\u8bfb\u53d6\u6570\u636e\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5"
+  internal_error: "\u670d\u52a1\u7aef\u8bfb\u53d6\u6570\u636e\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5",
+  measure_method: "\u672c\u63a5\u53e3\u53ea\u63a5\u53d7 POST \u8bf7\u6c42",
+  already_measured: "\u8be5\u6b65\u9aa4\u5df2\u7ecf\u5b9e\u6d4b\u8fc7\uff0c\u4e0d\u80fd\u91cd\u590d\u63d0\u4ea4",
+  write_failed: "\u670d\u52a1\u7aef\u5199\u5165\u6570\u636e\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5",
+  bad_body_json: "\u8bf7\u6c42\u4f53\u4e0d\u662f\u5408\u6cd5\u7684 JSON \u5bf9\u8c61",
+  missing_prefix: "\u7f3a\u5c11\u5fc5\u586b\u5b57\u6bb5\uff1a",
+  missing_suffix: "\uff08\u5fc5\u586b\u56db\u9879\uff1ascene_id\u3001order_no\u3001difficulty_level\u3001time_minutes\uff09",
+  field_prefix: "\u5b57\u6bb5 ",
+  field_mid: " \u53d6\u503c\u4e0d\u5408\u6cd5\uff1a",
+  rule_scene_id: "\u5e94\u5f62\u5982 scene-1",
+  rule_order_no: "\u5fc5\u987b\u662f\u5927\u4e8e\u7b49\u4e8e 1 \u7684\u6574\u6570",
+  rule_level: "\u5fc5\u987b\u662f 1 \u5230 5 \u7684\u6574\u6570",
+  rule_minutes: "\u5fc5\u987b\u662f\u5927\u4e8e\u7b49\u4e8e 0 \u7684\u6574\u6570",
+  step_prefix: "\u627e\u4e0d\u5230\u8fd9\u4e2a\u6b65\u9aa4\uff1a",
+  step_mid: " \u7684\u7b2c ",
+  step_suffix: " \u6b65\u4e0d\u5b58\u5728"
 };
 
 function sendJson(res, statusCode, payload) {
@@ -49,6 +64,14 @@ function fail(res, statusCode, errorCode, messageKey) {
   });
 }
 
+function failMsg(res, statusCode, errorCode, message) {
+  sendJson(res, statusCode, {
+    ok: false,
+    error: errorCode,
+    message: message
+  });
+}
+
 async function fetchTable(pathWithQuery, key) {
   const resp = await fetch(REST_BASE + pathWithQuery, {
     headers: { Authorization: "Bearer " + key }
@@ -57,6 +80,57 @@ async function fetchTable(pathWithQuery, key) {
     throw new Error("upstream_status_" + resp.status);
   }
   return resp.json();
+}
+
+async function patchTable(pathWithQuery, body, key) {
+  const resp = await fetch(REST_BASE + pathWithQuery, {
+    method: "PATCH",
+    headers: {
+      Authorization: "Bearer " + key,
+      "Content-Type": "application/json",
+      Prefer: "return=representation"
+    },
+    body: JSON.stringify(body)
+  });
+  if (!resp.ok) {
+    throw new Error("upstream_status_" + resp.status);
+  }
+  return resp.json();
+}
+
+function readJsonBody(req) {
+  return new Promise(function (resolve) {
+    var chunks = [];
+    var size = 0;
+    var over = false;
+    req.on("data", function (c) {
+      size += c.length;
+      if (size > 65536) {
+        over = true;
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on("end", function () {
+      if (over) {
+        resolve({ error: "bad_body" });
+        return;
+      }
+      var raw = Buffer.concat(chunks).toString("utf8");
+      if (!raw) {
+        resolve({ error: "bad_body" });
+        return;
+      }
+      try {
+        resolve({ value: JSON.parse(raw) });
+      } catch (e) {
+        resolve({ error: "bad_body" });
+      }
+    });
+    req.on("error", function () {
+      resolve({ error: "bad_body" });
+    });
+  });
 }
 
 function resolveRoute(pathname) {
@@ -72,6 +146,10 @@ function resolveRoute(pathname) {
 
   if (p === "" || p === "/" || p === "/scenes") {
     return { mode: "scenes_list" };
+  }
+
+  if (p === "/steps/measure") {
+    return { mode: "step_measure" };
   }
 
   var m = p.match(/^\/scenes\/(.+)$/);
@@ -120,6 +198,135 @@ function matchKeyword(item, needle) {
   return false;
 }
 
+function measureFieldError(res, field, rule) {
+  failMsg(
+    res,
+    400,
+    "invalid_param",
+    MSG.field_prefix + field + MSG.field_mid + rule
+  );
+}
+
+async function handleMeasure(req, res) {
+  var key = process.env.PUBLISHABLE_KEY;
+  if (!key) {
+    fail(res, 500, "config_error", "config_error");
+    return;
+  }
+
+  var parsedBody = await readJsonBody(req);
+  if (parsedBody.error) {
+    failMsg(res, 400, "invalid_param", MSG.bad_body_json);
+    return;
+  }
+  var payload = parsedBody.value;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    failMsg(res, 400, "invalid_param", MSG.bad_body_json);
+    return;
+  }
+
+  var required = ["scene_id", "order_no", "difficulty_level", "time_minutes"];
+  for (var r = 0; r < required.length; r++) {
+    var fname = required[r];
+    if (
+      !Object.prototype.hasOwnProperty.call(payload, fname) ||
+      payload[fname] === null ||
+      payload[fname] === undefined
+    ) {
+      failMsg(
+        res,
+        400,
+        "missing_field",
+        MSG.missing_prefix + fname + MSG.missing_suffix
+      );
+      return;
+    }
+  }
+
+  var sceneId = payload.scene_id;
+  if (typeof sceneId !== "string" || !/^scene-[0-9]+$/.test(sceneId)) {
+    measureFieldError(res, "scene_id", MSG.rule_scene_id);
+    return;
+  }
+
+  var orderNo = payload.order_no;
+  if (!Number.isInteger(orderNo) || orderNo < 1) {
+    measureFieldError(res, "order_no", MSG.rule_order_no);
+    return;
+  }
+
+  var level = payload.difficulty_level;
+  if (!Number.isInteger(level) || level < 1 || level > 5) {
+    measureFieldError(res, "difficulty_level", MSG.rule_level);
+    return;
+  }
+
+  var minutes = payload.time_minutes;
+  if (!Number.isInteger(minutes) || minutes < 0) {
+    measureFieldError(res, "time_minutes", MSG.rule_minutes);
+    return;
+  }
+
+  var rows;
+  try {
+    rows = await fetchTable(
+      "/steps?scene_id=eq." + sceneId + "&order_no=eq." + orderNo +
+        "&select=scene_id,order_no,difficulty_level,time_minutes,measure_status",
+      key
+    );
+  } catch (e) {
+    failMsg(res, 500, "internal_error", MSG.write_failed);
+    return;
+  }
+
+  if (!rows.length) {
+    failMsg(
+      res,
+      404,
+      "step_not_found",
+      MSG.step_prefix + sceneId + MSG.step_mid + orderNo + MSG.step_suffix
+    );
+    return;
+  }
+
+  if (rows[0].measure_status === "measured") {
+    failMsg(res, 409, "already_measured", MSG.already_measured);
+    return;
+  }
+
+  var updated;
+  try {
+    updated = await patchTable(
+      "/steps?scene_id=eq." + sceneId + "&order_no=eq." + orderNo,
+      {
+        difficulty_level: level,
+        time_minutes: minutes,
+        measure_status: "measured"
+      },
+      key
+    );
+  } catch (e) {
+    failMsg(res, 500, "internal_error", MSG.write_failed);
+    return;
+  }
+
+  var row = updated && updated.length ? updated[0] : null;
+  if (!row) {
+    failMsg(res, 500, "internal_error", MSG.write_failed);
+    return;
+  }
+
+  ok(res, {
+    item: {
+      scene_id: row.scene_id,
+      order_no: row.order_no,
+      difficulty_level: row.difficulty_level,
+      time_minutes: row.time_minutes,
+      measure_status: row.measure_status
+    }
+  });
+}
+
 const server = http.createServer(async function (req, res) {
   var started = Date.now();
   var parsed = null;
@@ -141,6 +348,14 @@ const server = http.createServer(async function (req, res) {
 
   if (route.mode === "not_found") {
     fail(res, 404, "invalid_path", "invalid_path");
+    return;
+  }
+  if (route.mode === "step_measure") {
+    if (req.method !== "POST") {
+      failMsg(res, 405, "method_not_allowed", MSG.measure_method);
+      return;
+    }
+    await handleMeasure(req, res);
     return;
   }
   if (req.method !== "GET") {
