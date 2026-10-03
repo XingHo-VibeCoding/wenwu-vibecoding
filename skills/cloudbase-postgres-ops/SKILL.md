@@ -146,6 +146,23 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
 - 即**网关按路由前缀匹配，然后把前缀从路径中删除**再转发。所以函数里的路由解析必须按"剥掉前缀后的路径"写；稳妥做法是**两种形态都兼容**。
 - `health` 那类不读路径的函数永远发现不了这条，写第一个真正解析路径的接口时才会撞上。
 - **定位手法**：临时加 `?debug=1` 分支回吐 `req.url` / `pathname` / `method`，实测完**务必删掉**再交付——比猜路径快得多。
+- 🔴 **绝对不要回吐 `req.headers`**（Day 18 真实事故）：腾讯云 SCF 会把函数运行时环境变量与**腾讯云临时密钥**以请求头形式注入（`x-scf-private-environment` 里明文含 `TENCENTCLOUD_SECRETID` / `SECRETKEY` / `SESSIONTOKEN`，另有 `x-cloudbase-context` 含 `serviceAccessToken`）。调试口是**公网可访问**的，回吐 headers = 把凭据挂在公网上。要回吐就**只回吐字段白名单**（如 `url` / `pathname` / `method` 三个）。
+
+### 平级多接口：一条 `/api` 路由管全部（Day 18 实测跑通，方案 K）
+
+"剥前缀"这条规则如果照字面配，每个接口都要单独配一条路由，而且同一个函数收到多个平级路径时**全是 `/`，无法区分**。解法是**把路由配成最短的公共前缀**：
+
+| 网关配的路由 | 浏览器访问 | 函数收到 |
+|---|---|---|
+| `/api` （一条） | `/api/scenes` | `/scenes` |
+| | `/api/scenes/scene-1` | `/scenes/scene-1` |
+| | `/api/resources` | `/resources` |
+| | `/api/tasks` | `/tasks` |
+| | `/api/health` | `/health` |
+
+- **收益**：四个接口天然分得开；以后加接口**只改函数代码，不用碰网关**；契约里登记的浏览器地址一个字不变。
+- **注意**：函数里要**同时兼容剥前缀与未剥前缀两种形态**（`/scenes` 与 `/api/scenes` 都认），并给可能被抢走的兄弟接口（如 `health`）留兜底分支。
+- 实测要点：改了路由要重新访问验证，`/api/health` 这条**不能被弄坏**（回归必查）。
 
 ### 接口自检与复核（比"部署成功"可信）
 

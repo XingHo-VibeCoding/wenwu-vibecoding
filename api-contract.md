@@ -1,12 +1,14 @@
 # 《电子设备使用指南》接口契约（api-contract）
 
-> **v1.2 ｜ Day 17 产出** ｜ 2026-10-02 ｜ Vibe Coding 五步工作流 · 第 3 周第 3 天
+> **v1.3 ｜ Day 18 产出** ｜ 2026-10-03 ｜ Vibe Coding 五步工作流 · 第 3 周第 4 天
 >
-> **本文档的依据**：`PRD.md` **v2.0** 第 6 节「数据字段」+ `TECH_DESIGN.md` **v2.0** 第 3 节「数据模型」+ **`db/schema.sql` 与 `db/seed.sql`（Day 16 定稿并已在 CloudBase 实际执行）** + `web/src/data/mock.js`（Day 15 程序化提取的真实数据）+ `cloudfunctions/health/README.md`（Day 15 已上线口径）+ **`cloudfunctions/scenes/README.md`（Day 17 新增，含网关路径行为与鉴权口径）**。
-> **本文档的读者**：Day 18–19 写接口的我、Day 20 联调的我、第二期的我。
-> **一句话总纲**：**契约先定，实现后填**——`/api/health`（Day 15）与 `/api/scenes`、`/api/scenes/:id`（Day 17）现已真在跑且有实测证据；余下 3 个读接口仍是占位契约，Day 18 起逐个点亮。
+> **本文档的依据**：`PRD.md` **v2.0** 第 6 节「数据字段」+ `TECH_DESIGN.md` **v2.2** 第 3 节「数据模型」+ **`db/schema.sql` 与 `db/seed.sql`（Day 16 定稿并已在 CloudBase 实际执行）** + `web/src/data/mock.js`（Day 15 程序化提取的真实数据）+ `cloudfunctions/health/README.md`（Day 15 已上线口径）+ **`cloudfunctions/scenes/README.md`（Day 17 新增 / Day 18 更新，含网关路径行为、方案 K 路由、鉴权与错误口径）**。
+> **本文档的读者**：Day 19 写接口的我、Day 20 联调的我、第二期的我。
+> **一句话总纲**：**契约先定，实现后填**——本期登记的 **6 个读接口已于 Day 18 全部点亮**（全走 GET，无写入类接口，理由见 §7.1 第 7 项）。
 >
 > ⚠️ **诚实声明**：本文档中标注「**待定**」的条目是**尚未拍板的提案**，不是既成事实；标注「**已实现**」的条目有实测证据；标注「沿用」的条目直接沿用 PRD/TECH_DESIGN 的既有字段口径，未新增发明。
+>
+> 📌 **v1.3 核心变化（Day 18）**：① 错误形状 **两字段 → 三字段**（加中文 `message`），§2.3 重写并附 **7 条文案表**（兼作 `\u` 转义对照表）；② 第 4 节 **4.3 占位区整体升为已实现**（`resources` / `instruments` / `tasks` 三个接口，附 Day 18 实测证据），占位区清空；③ **§4.4 新增「方案 K」路由口径**——网关只配 `/api` 一条即可管全部接口（推翻 v1.2 "每加一个路径都要单独配一条路由"的表述）；④ **§4.5 新增云函数四条铁律**（其中第四条来自 Day 18 一次真实的凭据泄露事故）；⑤ §5.1 现状更新为"库↔云函数已通、前端仍未接"；⑥ §7 关闭 3 项、新增 3 项。
 >
 > 📌 **v1.2 核心变化（Day 17）**：① 新增 **1.1 三个域名对照**（静态托管 / 云函数网关 / 数据库 REST API，Day 17 出现第三个域名）；② 第 4 节拆为 **4.1 已实现** / **4.2 占位**，`GET /api/scenes` 与 `GET /api/scenes/:id` **升为已实现并附 Day 17 实测证据**；③ 新增 **4.3 接口实现的技术口径**（云函数零依赖调 PostgreSQL REST API、Publishable Key + `anon` GRANT、**HTTP 网关会剥掉路由前缀再转发**）；④ §7 待定项：**关闭 3 项**（错误形状拍板、数据库角色/RLS 定案、读接口实现），**新增 2 项**（详情接口步骤字段有意省略 id/scene_id、余下 3 个接口未实现）。
 >
@@ -20,8 +22,9 @@
 |---|---|---|
 | CloudBase 环境名 | `wenwu-331122` | 已开通（体验版，到期 2027-03-31） |
 | 环境 ID | `wenwu-331122-d6gyrwmum2a734671` | 已确认 |
-| 云函数 | `health`（Day 15 上线）／`scenes`（Day 17 上线） | 两个 Web 函数，各监听 9000 |
-| 云函数 `service` 字段值 | `wenwu-vibecoding` | 已定（Day 15 拍板），仅 `/api/health` 返回 |
+| 云函数 | `health`（Day 15 上线）／`scenes`（Day 17 上线，Day 18 扩容为 4 类资源共 6 个接口） | 两个 Web 函数，各监听 9000 |
+| 网关路由（Day 18 定稿） | `/api/health` → `health`；**`/api` → `scenes`** | 见 4.4.2「方案 K」 |
+| 云函数 `service` 字段值 | `wenwu-vibecoding` | 已定（Day 15 拍板），健康检查响应返回 |
 | **API 基地址**（云函数 / HTTP 网关） | `https://wenwu-331122-d6gyrwmum2a734671-1498887015.ap-shanghai.app.tcloudbase.com` | 已实测可用 |
 | **前端访问地址**（静态托管） | `https://wenwu-331122-d6gyrwmum2a734671-1498877015.tcloudbaseapp.com/wenwu-vibecoding/` | 已实测可用 |
 | 旧前端地址（GitHub Pages，保留） | `https://xingho-vibecoding.github.io/wenwu-vibecoding/` | 已上线 |
@@ -52,7 +55,7 @@
 | 约定项 | 口径 |
 |---|---|
 | 协议 | **仅 HTTPS**（两个域名都只提供 https） |
-| 方法 | 读取类接口一律 `GET`；本期无写入类接口（无用户、无提交） |
+| 方法 | 读取类接口一律 `GET`；**本期无写入类接口**（`PRD.md` 第 7 节「暂不做清单」明文禁止 POST/PUT/DELETE，理由：规避数据被篡改与脏数据风险；Day 18 再次确认，见 §7.1 第 12 项） |
 | 路径风格 | 统一前缀 `/api/`；资源名用**复数小写**（`/api/scenes`），单个资源 `/{id}` 后缀 |
 | 查询参数 | 小写下划线或小写单词（如 `?type=oscilloscope&q=触发`）；本期不引入分页参数（数据量 ≤ 34 条） |
 | 请求体 | GET 请求不带 body |
@@ -64,18 +67,56 @@
 |---|---|
 | Content-Type | `application/json; charset=utf-8` |
 | 成功形状 | `{"ok": true, ...业务字段}`（**沿用**已上线 `/api/health` 的形状，不另发明包裹层） |
-| 失败形状 | `{"ok": false, "error": "<机器可读的错误标识>"}`（**沿用** `/api/health` 405 分支） |
+| 失败形状 | `{"ok": false, "error": "<机器可读的错误标识>", "message": "<中文说明>"}`（**Day 18 起三字段**，见 2.3） |
 | 状态码 | `200` 成功 / `400` 参数非法 / `404` 资源或路径不存在 / `405` 方法不允许 / `500` 服务端异常 |
 
-### 2.3 错误形状（**Day 17 随实现拍板：保持两字段**）
+### 2.3 错误形状（**Day 18 拍板：升级为三字段，加中文 `message`**）
 
-原 v1.1 在此处留过一个待定项：失败响应是否要加错误码 / 中文提示（如 `{"ok":false,"error":"invalid_param","message":"type 取值非法"}`）。
+**演变过程留痕**（三次口径，别只看结论）：
 
-**Day 17 拍板：不加，继续用 `{"ok":false,"error":"<标识>"}` 两字段。** 理由与现状：
+| 时点 | 口径 | 理由 |
+|---|---|---|
+| v1.0–v1.1 | 待定 | 没想到这一层 |
+| Day 17（v1.2） | **两字段** `{ok,error}`，中文交给前端映射 | 前端还没接接口（Day 20 才接），接口只给机器可读标识，职责更干净；且已实现的错误分支实测都是两字段 |
+| **Day 18（v1.3）** | **三字段** `{ok,error,message}` | Day 18 任务要求"错误提示用中文写清楚缺了什么"；接口自带中文，`curl` / 地址栏直连就能看见，**不必等前端**。代价是接口开始承担表现层职责——这是**有意接受**的取舍 |
 
-- 本期前端还没接接口（Day 20 才接），错误提示文案由**前端**负责渲染，接口只给机器可读标识，职责更干净。
-- 已实现的 3 个接口 + 两个错误分支（`invalid_path` / `invalid_param` / `scene_not_found` / `config_error` / `internal_error`）**实测都是两字段**，口径统一；此时中途加字段会让"已实现"与"占位"两份契约不一致。
-- 指标留痕：若 Day 20 联调时发现前端确实需要中文提示，**由前端做映射表**（标识 → 文案），不改接口形状。
+**选定形状**：
+
+```json
+{ "ok": false, "error": "invalid_param", "message": "type 取值不在允许范围内。可选值：dc_power、multimeter、oscilloscope、signal_gen、lcr、curve_tracer" }
+```
+
+- `error` —— **英文机器标识，一个字母不改**。前端照旧可以拿它做判断/埋点，**不解析 `message`**（文案会改，标识不会）。
+- `message` —— 中文人话，**按每个失败分支各自写**，不做"一个错误码配一句通用文案"（同一个 `invalid_param` 在"编号格式错"和"type 越界"两种场景下，用户该看到的话本就不一样）。
+
+**`message` 文案表（Day 18 定稿，全部为已实现的实际文案）**：
+
+| # | `error` | 触发场景 | `message` |
+|---|---|---|---|
+| 1 | `invalid_path` | 路径匹配不上任何已实现接口 | 接口地址不存在 |
+| 2 | `invalid_param` | 场景编号格式不对（如 `/api/scenes/hello`）；**单段未知路径**也走此分支 | 请求的路径不存在，或场景编号格式不对（应形如 scene-1） |
+| 3 | `invalid_param` | `type` 不在 6 个枚举值内 | type 取值不在允许范围内。可选值：dc_power、multimeter、oscilloscope、signal_gen、lcr、curve_tracer |
+| 4 | `scene_not_found` | 场景 id 不存在 | 找不到这个场景。当前有 scene-1 至 scene-4 共 4 个场景 |
+| 5 | `method_not_allowed` | 非 GET 请求 | 本接口只接受 GET 请求 |
+| 6 | `config_error` | 云函数没读到环境变量 | 服务端配置缺失，请联系维护者 |
+| 7 | `internal_error` | 查库失败（REST 调用异常） | 服务端读取数据失败，请稍后重试 |
+
+**两处刻意的写法**：
+
+- 第 6 条**不写**"未读取到 PUBLISHABLE_KEY"——那是内部实现细节，公开接口不该吐出来；排查看服务端日志（Day 18 已加日志）。
+- 第 2 条一句覆盖两种情形（"路径不存在"与"编号格式不对"），因为函数在单段路径上**区分不了**用户是打错了接口名还是打错了场景编号。
+
+**⚠️ 已知的一处口径不一致（如实记录，未修）**：
+
+`/api/health` 是**独立的探针函数**（`cloudfunctions/health/`），Day 18 **没有动它**，它的 405 分支仍是两字段且标识带空格：
+
+```json
+{ "ok": false, "error": "method not allowed" }
+```
+
+→ 与本文档 2.3 的三字段 / 下划线式命名不一致。**不修的理由**：它是唯一跑通的老探针，改动收益（命名统一）小于风险（动已上线的探针）。**记为待办**：将来若统一，改 `cloudfunctions/health/index.js` 一处即可。
+
+**⚠️ 中文进代码的技术前提**：云函数代码受"纯 ASCII"铁律约束（控制台在线编辑器粘贴对非 ASCII 有风险），故 `message` 在 `index.js` 里写成 **`\uXXXX` 转义**（如 `"\u63a5\u53e3\u5730\u5740\u4e0d\u5b58\u5728"` → 运行时输出"接口地址不存在"）。**Day 18 已实测**：真实公网响应里中文显示正常。代价是代码可读性差，故本表兼作**转义对照表**。
 
 ### 2.4 鉴权与限流
 
@@ -248,6 +289,8 @@ Host: wenwu-331122-d6gyrwmum2a734671-1498887015.ap-shanghai.app.tcloudbase.com
 {"ok": false, "error": "method not allowed"}
 ```
 
+> ⚠️ 这是**唯一仍是两字段**的响应——`health` 是独立探针函数，Day 18 未改动它，故未同步三字段口径。原因与处理见 **§2.3 末「已知的一处口径不一致」**。
+
 **验证证据（2026-09-30）**
 
 | 验证方式 | 结果 |
@@ -275,8 +318,8 @@ Host: wenwu-331122-d6gyrwmum2a734671-1498887015.ap-shanghai.app.tcloudbase.com
 |---|---|
 | `GET /api/scenes` | `200` `count:4`，1616 字节，`application/json; charset=utf-8`，中文正常 |
 | `GET /api/scenes/scene-1` | `200`，`item.steps` **5 条**，`order_no` 序列 `[1,2,3,4,5]` 无缺号，1957 字节 |
-| `GET /api/scenes/scene-99` | `404` `{"ok":false,"error":"scene_not_found"}` |
-| `GET /api/scenes/hello` | `400` `{"ok":false,"error":"invalid_param"}` |
+| `GET /api/scenes/scene-99` | `404` `{"ok":false,"error":"scene_not_found","message":"找不到这个场景。当前有 scene-1 至 scene-4 共 4 个场景"}` |
+| `GET /api/scenes/hello` | `400` `{"ok":false,"error":"invalid_param","message":"请求的路径不存在，或场景编号格式不对（应形如 scene-1）"}` |
 | 回归：`GET /api/health` | `200`（新函数未影响老接口） |
 | **真库验证** | 控制台 `UPDATE scenes SET name = '…（已改）' WHERE id='scene-1'` → 刷新接口，`S1.name` 跟着变；改回后亦一致 → 证明数据真从库里读出，非写死 |
 
@@ -308,7 +351,7 @@ Host: wenwu-331122-d6gyrwmum2a734671-1498887015.ap-shanghai.app.tcloudbase.com
 }
 ```
 
-**失败**：`500 {"ok":false,"error":"internal_error"}`（REST 调用失败）；环境变量缺失时 `500 {"ok":false,"error":"config_error"}`
+**失败**：`500 {"ok":false,"error":"internal_error","message":"服务端读取数据失败，请稍后重试"}`（REST 调用失败）；环境变量缺失时 `500 {"ok":false,"error":"config_error","message":"服务端配置缺失，请联系维护者"}`
 
 > 字段名与取值**均取自数据库真实内容**（`scenes` 表第 1 行原样）。**Day 17 实测比对：接口返回 11 个字段 = `scenes` 表 11 列，逐个对上，无差异。**
 
@@ -355,8 +398,8 @@ Host: wenwu-331122-d6gyrwmum2a734671-1498887015.ap-shanghai.app.tcloudbase.com
 
 | 场景 | 状态码 | 响应 |
 |---|---|---|
-| id 不存在 | 404 | `{"ok":false,"error":"scene_not_found"}` |
-| id 格式非法 | 400 | `{"ok":false,"error":"invalid_param"}` |
+| id 不存在 | 404 | `{"ok":false,"error":"scene_not_found","message":"找不到这个场景。当前有 scene-1 至 scene-4 共 4 个场景"}` |
+| id 格式非法 | 400 | `{"ok":false,"error":"invalid_param","message":"请求的路径不存在，或场景编号格式不对（应形如 scene-1）"}` |
 
 **⚠️ 字段级差异（Day 17 实测发现，有意为之，不是丢数据）**
 
@@ -372,9 +415,22 @@ Host: wenwu-331122-d6gyrwmum2a734671-1498887015.ap-shanghai.app.tcloudbase.com
 
 > **发现方法留痕**：把接口返回的字段清单（`json.loads` 后 `sorted(keys)`）与 `db/schema.sql` 的列名**并列做差集**——只盯着返回内容看是发现不了"少字段"的，少一个字段的 JSON 看起来完全正常。
 
-### 4.3 ⏳ 占位契约（Day 18+ 实现，**当前全部 404**）
+### 4.3 ✅ 已实现（Day 18）：`GET /api/resources`、`GET /api/instruments`、`GET /api/tasks`
 
-以下 3 个接口**当前都不存在**，写了路径也是 404。形状在此先定，Day 18 起按 4.4 的口径逐个点亮（实现方式与 `scenes` 完全一致，只需在同一个云函数里加路由分支 + 网关上各配一条路由）。
+三个接口于 **2026-10-03（Day 18）** 随同一批上线，实现方式与 `scenes` **完全一致**——同一个云函数（`cloudfunctions/scenes/`）里加路由分支，**网关不另配路由**（见 4.4 方案 K）。
+
+**Day 18 实测证据**（AI 远程抓取原始响应 + 用户控制台截图双向核对）：
+
+| 接口 | 实测结果 |
+|---|---|
+| `GET /api/resources` | `200` `count: 6` ✅ 与 `resources` 表 6 行一致 |
+| `GET /api/instruments` | `200` `count: 34` ✅ 与 `instruments` 表 34 行一致 |
+| `GET /api/instruments?type=multimeter` | `200` `count: 7` ✅ 与库中万用表 7 条一致 |
+| `GET /api/instruments?type=xxx` | `400` `invalid_param` + 中文 `message` ✅ 参数校验生效 |
+| `GET /api/instruments?q=电压` | `200` `count: 5` ✅ 关键词过滤生效 |
+| `GET /api/instruments?q=zzzznomatch` | `200` `count: 0` ✅ 搜不到返回空结果而非 404 |
+| `GET /api/tasks` | `200` `count: 8` ✅ 与 `tasks` 表 8 行一致 |
+| `GET /api/health`（回归） | `200` ✅ 老接口未被弄坏 |
 
 #### 4.3.1 `GET /api/resources` —— 资源入口列表
 
@@ -447,7 +503,7 @@ Host: wenwu-331122-d6gyrwmum2a734671-1498887015.ap-shanghai.app.tcloudbase.com
 
 | 场景 | 状态码 | 响应 |
 |---|---|---|
-| `type` 取值不在枚举内 | 400 | `{"ok":false,"error":"invalid_param"}` |
+| `type` 取值不在枚举内 | 400 | `{"ok":false,"error":"invalid_param","message":"type 取值不在允许范围内。可选值：dc_power、multimeter、oscilloscope、signal_gen、lcr、curve_tracer"}` |
 
 #### 4.3.3 `GET /api/tasks` —— 任务索引（跳转按钮 + 搜索视图共用）
 
@@ -468,7 +524,7 @@ Host: wenwu-331122-d6gyrwmum2a734671-1498887015.ap-shanghai.app.tcloudbase.com
 
 > 前端拿到 `scene_id` 后拼路由 `#/transfer/{scene_id}`（**沿用** TECH_DESIGN 第 3 节「路由目标」口径）。跳转本身仍由前端 hash 路由完成，接口只提供数据。
 
-### 4.4 接口实现的技术口径（**Day 17 跑通后定稿，后 3 个接口照此办理**）
+### 4.4 接口实现的技术口径（**Day 17 定稿 / Day 18 补方案 K 与铁律**）
 
 **一句话**：云函数零依赖（全局 `fetch`）调 CloudBase 的 **PostgreSQL REST API**，不装 `pg` 驱动、不碰模板 `package.json`。
 
@@ -481,16 +537,54 @@ Host: wenwu-331122-d6gyrwmum2a734671-1498887015.ap-shanghai.app.tcloudbase.com
 | 鉴权 | `Authorization: Bearer <PUBLISHABLE_KEY>`，Key 由**云函数环境变量**注入（`Publishable Key` → 角色 `anon`），不进代码/Git/聊天/前端 |
 | 库侧授权 | `GRANT USAGE ON SCHEMA public TO anon;` + `GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;`（只读） |
 | RLS | **未启用**（本期数据公开只读，不需要；第二期有用户数据再议） |
-| 路由 | 网关 `/api/<name>` → 云函数；**网关不支持通配符** |
+| **路由（Day 18 定稿）** | 网关**只配一条 `/api`** 指向 `scenes` 函数，全部接口由函数内分发——见下方「方案 K」 |
+| 日志 | 每请求一行：`[ISO时间] METHOD path 模式 -> 状态码 耗时ms`，**只打这四样** |
 
-**⚠️ 最重要的一条隐藏行为（Day 17 实测）**：**HTTP 网关按路由前缀匹配后，会把前缀从路径中剥掉再转发给函数**——
+#### 4.4.1 ⚠️ 网关会把路由前缀剥掉再转发（Day 17 实测）
 
-| 浏览器访问 | 函数实际收到的 `pathname` |
+**HTTP 网关按路由前缀匹配，然后把前缀从路径中删除**，再把剩余路径交给函数：
+
+| 浏览器访问 | 路由配成 `/api/scenes` 时，函数收到 |
 |---|---|
 | `/api/scenes` | `/` |
 | `/api/scenes/scene-1` | `/scene-1` |
 
-因此函数内的路由解析必须按"剥掉前缀后的路径"写；稳妥做法是**两种形态都兼容**（本项目 `resolveMode` 已如此）。`health` 不读路径，所以该行为在 Day 15–16 一直没暴露。**定位手法**：临时加 `?debug=1` 回吐 `req.url`，实测完删除。
+`health` 不读路径，所以该行为在 Day 15–16 一直没暴露，直到写第一个真正解析路径的接口才撞上。**函数内的路由解析必须按"剥掉前缀后的路径"写，并同时兼容未剥前缀的形态**（本项目两种都认，防网关行为变化）。
+
+#### 4.4.2 ✅ 方案 K：网关只配 `/api` 一条，管住全部接口（Day 18 实测跑通）
+
+v1.2 曾据"剥前缀"推论出「**每加一个接口路径都要单独配一条路由**」。**Day 18 推翻了这个表述的一半**——不必逐条配长路径，把路由配成**最短公共前缀**即可：
+
+| 网关配置 | 浏览器访问 | 函数收到 |
+|---|---|---|
+| **`/api`（仅此一条）** | `/api/scenes` | `/scenes` |
+| | `/api/scenes/scene-1` | `/scenes/scene-1` |
+| | `/api/resources` | `/resources` |
+| | `/api/instruments` | `/instruments` |
+| | `/api/tasks` | `/tasks` |
+| | `/api/health` | `/health`（函数内留了兜底分支，见下） |
+
+**收益**：① 多个平级接口在单函数内天然分得开（若逐条配长路径，它们收到的都是 `/`，**无法区分**——这是 Day 18 实测出的真实困境）；② **以后加接口只改函数代码，不用再碰网关**；③ 契约里登记的浏览器地址一个字不变。
+
+**两个必须配套的做法**：
+
+- 函数内**同时兼容剥前缀与未剥前缀两种形态**（`/scenes` 与 `/api/scenes` 都认）；
+- 给可能被这条短前缀"抢走"的兄弟接口留**兜底分支**——本项目 `/api/health` 原本指向独立的 `health` 函数。**Day 18 保留了 `/api/health` 那条老路由不动**（两条路由并存）；若网关按最长前缀匹配则仍由 `health` 函数响应，若按 `scenes` 函数兜底分支响应，**两条路径返回的 JSON 完全相同**（`{"ok":true,"service":"wenwu-vibecoding"}`），故地址不会断、响应不变。**⚠️ 如实说明**：截至 Day 18 收工，**尚无法分辨 `/api/health` 实际由哪个函数响应**（两个函数返回一模一样的 JSON，无区分特征）；功能上无影响，但若日后排查 health 行为，需先确认这一点（可在函数日志里看哪边有请求记录）。
+
+**实测证据**：改配后 `health` / `scenes` / `scenes/:id` / `resources` / `instruments` / `tasks` + 两个错误分支共 **11 个地址全部通过**（含回归检查）。
+
+> ⚠️ 网关**不支持通配符**（没有"配一次 `/api/*` 全接管"这回事）——方案 K 靠的是**前缀匹配**，不是通配符。
+
+#### 4.4.3 云函数四条铁律（**违反任一条都会出事故**）
+
+| # | 铁律 | 由来 |
+|---|---|---|
+| 1 | **`package.json` 保持模板原样，永不替换** | Day 15 实测：换任何自写版本必挂 `InvalidParameter.Dependency` |
+| 2 | **部署代码纯 ASCII、零 `//` 注释** | 控制台在线编辑器粘贴会吃换行，`//` 会把后文吞掉；中文一律写 `\uXXXX` |
+| 3 | **函数收到的路径 = 浏览器路径 − 网关路由前缀** | Day 17 实测（见 4.4.1） |
+| 4 | **永不回吐 `req.headers`** | **Day 18 真实事故**：腾讯云 SCF 会把函数运行时环境变量与**腾讯云临时密钥**以请求头形式注入（`x-scf-private-environment` 里明文含 `TENCENTCLOUD_SECRETID` / `SECRETKEY` / `SESSIONTOKEN`，另有 `x-cloudbase-context` 含 `serviceAccessToken`）。调试口是**公网可访问**的，回吐 headers = 把凭据挂在公网上。要回吐就只回吐字段白名单（如 `url` / `pathname` / `method`） |
+
+> **部署成功 ≠ 代码能跑**：改完必须实际访问接口验证（Day 15 / 17 / 18 都吃过这个亏）。
 
 **错误分层（排查顺序）**：
 
@@ -498,14 +592,14 @@ Host: wenwu-331122-d6gyrwmum2a734671-1498887015.ap-shanghai.app.tcloudbase.com
 |---|---|---|
 | `500 config_error` | 函数 | 环境变量没读到 |
 | `500 internal_error` | 函数 → REST | Key 值错 / GRANT 缺失 / 网关拒绝 |
-| `404 invalid_path` | 函数 | 路径解析没匹配上（说明路由是通的，是函数自己的响应） |
-| 非 JSON 的 404 | 网关 | 路由没配上，请求没进函数 |
+| `400 invalid_param` / `404 scene_not_found` / `404 invalid_path` | 函数 | 路径或参数问题（**说明路由是通的**，是函数自己的响应） |
+| 非 JSON 的 404（形如 `{"code":"INVALID_PATH",...}`） | 网关 | 路由没配上，请求没进函数 |
 
 ---
 
 ## 5. 前后端数据流（现状 → 目标）
 
-### 5.1 现状（**Day 17 收工时**：下半段已接通，前端仍未接）
+### 5.1 现状（**Day 18 收工时**：库↔云函数全通，前端仍未接）
 
 ```
 【已有】CloudBase PostgreSQL —— 5 张表 + 72 行真实数据 ✅
@@ -513,16 +607,17 @@ Host: wenwu-331122-d6gyrwmum2a734671-1498887015.ap-shanghai.app.tcloudbase.com
                 │  ✅ 已接通（Day 17）：云函数经 PostgreSQL REST API 读取，
                 │     实测"控制台改一行 → 刷新接口跟着变"
                 ▼
-【可用】云函数 scenes —— /api/scenes、/api/scenes/:id 已上线并实测 ✅
-                │  （health 仍单独提供 /api/health）
+【完成】云函数 scenes —— 本期登记的全部 6 个读接口已上线并实测 ✅
+                │  （health 独立函数仍提供 /api/health）
+                │  网关只配 /api 一条路由（方案 K，见 4.4.2）
                 │
                 │  ✗ 前端仍未发请求（CORS 未配，排 Day 20）
                 ▼
 【前端】React 静态托管版 —— 数据仍来自本地 mock.js，零网络请求 ⚠️
 ```
 
-- **诚实结论（Day 17 更新）**：Day 16 记录的"三层一层都没接通"**已部分关闭**——**库 ↔ 云函数这一层今天真正接通了**（有实测证据，见 4.2）；**云函数 ↔ 前端仍未接通**，前端的 `mock.js` 与数据库内容**内容相同、来源无关**，不是"从库里读出来的"。
-- 前端**零网络请求**：搜索、筛选、渲染全部在浏览器本地完成（线上接口 `/api/health`、`/api/scenes` 均未被前端调用）。
+- **诚实结论（Day 18 更新）**：Day 16 记录的"三层一层都没接通"**已完成三分之二**——**库 ↔ 云函数已全通**（6 个接口全部上线且有实测证据，见 4.2 / 4.3）；**云函数 ↔ 前端仍未接通**，前端的 `mock.js` 与数据库内容**内容相同、来源无关**，不是"从库里读出来的"。
+- 前端**零网络请求**：搜索、筛选、渲染全部在浏览器本地完成（线上 6 个接口**均未被前端调用**）。
 - 打包产物路径：`web/dist/` → 上传 CloudBase 静态托管 → 公网子路径 `/wenwu-vibecoding/`。
 - 静态站版（根 `index.html`）与 React 版**都还在跑**，两版并存（判卷标准分两套，不混用）。
 
@@ -579,9 +674,9 @@ Day 17 改造前端时按此表改，避免漏字段。**右侧是数据库真�
 
 ---
 
-## 7. 待定与欠账（**Day 17 收工时的真实状态**）
+## 7. 待定与欠账（**Day 18 收工时的真实状态**）
 
-### 7.1 已关闭（Day 16–17 做完）
+### 7.1 已关闭（Day 16–18 做完）
 
 | # | 事项 | 结果 |
 |---|---|---|
@@ -591,10 +686,12 @@ Day 17 改造前端时按此表改，避免漏字段。**右侧是数据库真�
 | 4 | `instruments.device_type` 靠前端推导 | ✅ 已成独立列 + `CHECK` 枚举，34 条逐条落值 |
 | 5 | `scenes.prerequisite` 缺失 | ✅ 4 条真实前置条件已入库，字段收紧为 NOT NULL |
 | 6 | 5 处字段名与 SQL 关键字/类型名撞车 | ✅ 已改名（第 3.0 节），契约与库一致 |
-| 7 | **读接口一个都没实现** | ✅ **Day 17 实现并实测** `/api/scenes`、`/api/scenes/:id`（见 4.2） |
-| 8 | 错误响应是否要加错误码 / 中文提示 | ✅ **Day 17 拍板：不加**，保持两字段（见 2.3），前端做标识→文案映射 |
+| 7 | **读接口一个都没实现** | ✅ **Day 17** 实现并实测 `/api/scenes`、`/api/scenes/:id`；**Day 18** 补齐余下三个（见 4.2 / 4.3） |
+| 8 | 错误响应是否要加错误码 / 中文提示 | ✅ **Day 17 拍板两字段 → Day 18 改为三字段**（加中文 `message`），口径与文案表见 2.3。**这是本文档中唯一一次"推翻自己前一天的拍板"，原因与代价已留痕** |
 | 9 | 云函数连库的**角色与 RLS** 未定 | ✅ **Day 17 定案**：Publishable Key（`anon`）+ 表级 `GRANT SELECT`，**RLS 不启用**（见 4.4） |
 | 10 | "云函数怎么连库"（`package.json` 铁律卡点） | ✅ **Day 17 定案**：走 PostgreSQL REST API，零依赖，`package.json` 一字未改 |
+| 11 | **多接口共用一个云函数时路径无法区分**（网关剥前缀导致平级路径都变成 `/`） | ✅ **Day 18 定案「方案 K」**：网关只配 `/api` 一条，函数收到 `/scenes`、`/resources`…（见 4.4.2），11 个地址实测通过 |
+| 12 | 本期是否要做**写入类接口**（POST/PUT/DELETE） | ✅ **Day 18 定案：不做**。`PRD.md` 第 7 节「暂不做清单」明文禁止写入类接口（理由：规避数据被篡改与脏数据风险），契约 §2.1 亦写明"本期无写入类接口"。**故全部 6 个接口均为 GET** |
 
 ### 7.2 未关闭（**别当成已解决**）
 
@@ -602,12 +699,14 @@ Day 17 改造前端时按此表改，避免漏字段。**右侧是数据库真�
 |---|---|---|---|
 | 1 | `difficulty` / `time_cost` / `difficulty_level` / `time_minutes` **全部未实测**（`measure_status` 全为 `pending`） | **AC-08 仍未满足** | 需实测后逐条 UPDATE，**不得编数字** |
 | 2 | **CORS 未配置**（静态托管域 ≠ 云函数网关域，跨域预检必失败） | 前端接接口**必然报错**，且容易被误诊成"fetch 写错了" | Day 20 |
-| 3 | **余下 3 个读接口未实现**（`/api/resources`、`/api/instruments`、`/api/tasks`） | 前端拿不到这三类数据 | Day 18 |
+| 3 | `/api/health` 的 405 分支仍是**两字段**且标识带空格（`"method not allowed"`） | 与 2.3 的三字段口径不一致 | 待办，改一处即可（风险极低，暂不动已上线探针） |
 | 4 | 详情接口的 `steps[]` **有意省略 `id` / `scene_id`** | 前端若做"单步锚点/单步收藏"需补 `id` | 触发时再做 |
 | 5 | 是否保留 `mock.js` 作离线兜底 | 断网可用性（AC-03/AC-14④） | Day 20 起定 |
 | 6 | React 版前端显示的资源文案是**截短版**，与库/静态站不一致 | 两版内容不一致 | Day 20 接接口后自然统一 |
 | 7 | 前端 `data-type` 用**中文标签**，库用 6 个英文枚举 | 筛选会失灵 | Day 20 改前端 |
 | 8 | 前端仍未接任何接口（零网络请求） | 页面数据来源仍是本地 mock | Day 20 |
+| 9 | 函数名 `scenes` 如今管着 4 类资源，**名字有误导** | 可读性 / 新人误解 | Day 20 联调后再整理，**不为改名动已上线的东西** |
+| 10 | 中文 `message` 在代码里是 `\uXXXX` 转义，**可读性差** | 维护成本 | 已用 2.3 文案表兼作对照表**部分缓解**；根治需把文案外置（本期不做） |
 
 ---
 
@@ -618,3 +717,4 @@ Day 17 改造前端时按此表改，避免漏字段。**右侧是数据库真�
 | v1.0 | 2026-09-30 | 初稿（Day 15 板块④产出）。定基地址与通用约定；确立 5 张表字段口径（`scenes` / `steps` / `resources` / `instruments` / `tasks`）；`GET /api/health` 记为已实现（附三方验证证据）；其余 5 个接口列为占位契约；附 mock 字段映射表与 7 项待定欠账。**引擎注**：`scenes` 数据债（难度/耗时全"待实测"）与 CORS 未配置为本次排查新发现，非沿用旧口径。 |
 | **v1.1** | **2026-10-01** | **Day 16 建表回写（本文档与数据库逐字段对齐）**：① 新增 **3.0 数据库交付物**（`db/schema.sql` / `db/seed.sql`、执行顺序、可重复执行机制、实测行数 4/20/6/34/8=72、关联验证、RLS 未启用、安全边界）；② 第 3 节五张表**从提案改为定稿**，字段名/类型/约束/索引全部按 `db/schema.sql` 重写，示例值换成数据库真实内容；③ **5 处改名定稿**：`desc→description`、`time→time_cost`、`text→content`、`use→purpose`、`instruments.steps→step_list`；④ `prerequisite` 可空 → **NOT NULL**；⑤ `device_type` 枚举**定稿**并补每类条数；⑥ 第 4 节各接口响应示例改用真实字段名与真实数据（`/api/scenes`、`/api/scenes/:id`、`/api/resources`、`/api/instruments`）；⑦ 第 6 节映射表更新为「mock 键 → 数据库列名」；⑧ 第 7 节拆成「已关闭 6 项 / 未关闭 7 项」，如实记录 AC-08 仍未满足、CORS 未配、RLS 未定。**引擎注**：v1.0 中「其余 5 个接口」仍**全部为占位契约、当前调用全是 404**——Day 16 只建了库，**没写任何接口**。 |
 | **v1.2** | **2026-10-02** | **Day 17 读接口实现回写**：① 新增 **1.1 三个域名对照**（静态托管 / 云函数网关 / 数据库 REST API）；② §2.3 错误形状**拍板为两字段**；③ 第 4 节拆成 **4.1 已实现**（`health`）/ **4.2 已实现**（`scenes` 列表 + 单场景，附 Day 17 实测证据表含真库验证）/ **4.3 占位**（`resources` / `instruments` / `tasks`，编号顺延为 4.3.1–4.3.3）；④ 新增 **4.4 接口实现技术口径**（零依赖 `fetch` 调 PostgreSQL REST API、`Publishable Key` + `anon` GRANT、**网关剥掉路由前缀**、错误分层排查表）；⑤ 记录详情接口 `steps[]` **有意省略 `id`/`scene_id`** 及代价；⑥ §5.1 现状更新为"**库↔云函数已接通、云函数↔前端未接通**"；⑦ §7 关闭 4 项（读接口实现、错误形状、角色与 RLS、`package.json` 卡点）、未关闭项重排为 8 项。**引擎注**：本版所有"已实现"结论均有实测证据，非推断；`mock.js` 仍是前端唯一数据来源，前端未接任何接口。 |
+| **v1.3** | **2026-10-03** | **Day 18 三接口上线 + 错误口径升级回写**：① **§2.3 错误形状改为三字段** `{ok,error,message}`（加中文 `message`），附三次口径演变的留痕表与 **7 条文案表**（兼作 `\u` 转义对照表），并如实记录 `/api/health` 405 分支仍为两字段这处**未修的不一致**；② **§4.3 三个占位接口整体升为已实现**（`resources` / `instruments` / `tasks`），附 Day 18 实测证据表（8 行，含回归检查与空结果 200），占位区清空；③ **§4.4 拆为 4.4.1 / 4.4.2 / 4.4.3**：保留并细化"网关剥前缀"，**新增「方案 K」（网关只配 `/api` 一条即可管全部接口，推翻 v1.2"每加一个路径都要单独配路由"的表述）**，新增**云函数四条铁律**（第四条来自 Day 18 一次真实的凭据泄露事故：调试口回吐 `req.headers` 导致腾讯云临时密钥暴露在公网）；④ §2.2 失败形状、§4.2 / §4.3 全部错误示例同步为三字段；⑤ §5.1 现状更新为"库↔云函数全通、前端仍未接"；⑥ §7 关闭 2 项（三接口实现、是否做写入类接口→**不做**，附 PRD 依据）、未关闭项调整为 10 项（新增函数名误导、`\u` 转义可读性两项）。**引擎注**：Day 18 原任务清单要求做 POST 写接口，与 `PRD.md` 明文"不做任何写入类接口"冲突 → **用户拍板守 PRD**，Day 18 转为补齐三个读接口；中文提示的呈现面（前端屏幕）仍因 CORS 未配而看不到，今天只验证到接口层，**此限制已如实记录**。 |

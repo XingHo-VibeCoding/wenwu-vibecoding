@@ -1,28 +1,55 @@
-# cloudfunctions/scenes —— GET /api/scenes + GET /api/scenes/:id（Day 17）
+# cloudfunctions/scenes —— 全部 6 个读接口（Day 17 建立 / Day 18 扩容）
 
-## 部署状态（2026-10-02 晚）
+> 函数名 `scenes` 是 Day 17 起的名字，Day 18 起它实际管着 **4 类资源、6 个接口**。
+> **名字有误导，但刻意不改**（不为改名去动已上线的东西，见文末待办）。
 
-- **✅ 已上线并实测**：
-  - `GET /api/scenes` → `200 {"ok":true,"count":4,"items":[S1–S4]}`（按 `no` 升序）
-  - `GET /api/scenes/scene-1` → `200 {"ok":true,"item":{…,"steps":[5 条]}}`
-  - `GET /api/scenes/scene-99` → `404 {"ok":false,"error":"scene_not_found"}`
-  - `GET /api/scenes/hello` → `400 {"ok":false,"error":"invalid_param"}`
-  - 复核方式：控制台部署后，AI 用 python urllib 远程抓取全部地址独立复核（含 `/api/health` 回归 200）
+## 承载的接口
+
+| 接口 | 实现日 | 查询参数 |
+|---|---|---|
+| `GET /api/scenes` | Day 17 | 无 |
+| `GET /api/scenes/:id` | Day 17 | 无 |
+| `GET /api/resources` | Day 18 | 无 |
+| `GET /api/instruments` | Day 18 | `type`（6 个枚举白名单）、`q`（关键词，对 `title`+`keywords` 不区分大小写包含匹配） |
+| `GET /api/tasks` | Day 18 | 无 |
+| `GET /api/health`（兜底分支） | Day 18 | 无——`/api/health` 另有独立函数，本分支是防被短前缀抢走的兜底 |
+
+## 部署状态（2026-10-03，Day 18 收工）
+
+**✅ 已上线并实测**（用户控制台截图 + AI 远程 python urllib 独立复核，11 个地址）：
+
+| 地址 | 实测结果 |
+|---|---|
+| `/api/health` | `200`（回归检查，老接口未被弄坏） |
+| `/api/scenes` | `200` `count:4` |
+| `/api/scenes/scene-1` | `200`，`item.steps` 5 条 |
+| `/api/resources` | `200` `count:6` |
+| `/api/instruments` | `200` `count:34` |
+| `/api/instruments?type=multimeter` | `200` `count:7` |
+| `/api/instruments?type=xxx` | `400` `invalid_param` + 中文 `message` |
+| `/api/instruments?q=电压` | `200` `count:5` |
+| `/api/instruments?q=zzzznomatch` | `200` `count:0`（搜不到返回空结果，**不是 404**） |
+| `/api/tasks` | `200` `count:8` |
+| `/api/hello` | `400` + 中文（单段未知路径） |
+
 - 函数名：`scenes`（模板：HTTP nodejs - Hello World，Web 函数模式，监听 9000）
-- 部署方式：控制台在线编辑器（只替换 `index.js`，`package.json` 保持模板原样）
+- 部署方式：控制台在线编辑器（**只替换 `index.js`**，`package.json` 保持模板原样）
+- 当前 `index.js` 体检：`node --check` exit 0 ｜ 非 ASCII 字节 0 ｜ 18 条路径本地路由自测全通过
 
-## 架构（Day 17 拍板"B 路径"）
+## 架构
 
 ```
-浏览器 → HTTP 网关(/api/scenes → 函数 scenes)
-       → 函数用 Node 20 全局 fetch 调 CloudBase PostgreSQL REST API(PostgREST)
+浏览器 → HTTP 网关（只配 /api 一条路由，剥掉 /api 后转发）
+       → 函数内分发：/scenes、/resources、/instruments、/tasks、/health
+       → 函数用 Node 20 全局 fetch 调 CloudBase PostgreSQL REST API（PostgREST）
        → PostgreSQL public schema
 ```
 
-- **零依赖**：不用 `pg` 驱动，绕开"package.json 不能改"的铁律一
+- **零依赖**：不用 `pg` 驱动，绕开"`package.json` 不能改"的铁律一
 - REST 端点：`https://wenwu-331122-d6gyrwmum2a734671.api.tcloudbasegateway.com/v1/rdb/rest/{table}`
   （⚠️ 这是第三个域名，与静态托管 `tcloudbaseapp.com`、云函数网关 `app.tcloudbase.com` 都不同，别串）
-- 过滤走 PostgREST 查询参数（`?id=eq.scene-1`），天然参数化防注入；详情接口的 id 另过正则 `^scene-[0-9]+$` 双保险
+- 过滤走 PostgREST 查询参数（`?id=eq.scene-1`），**天然参数化防注入**；路径参数另过正则白名单（`^scene-[0-9]+$`）双保险
+- `q` 关键词在**函数内**过滤（PostgREST 的 `like` 对数组列 `keywords` 不便，故取回后用 JS 匹配）
 
 ## 鉴权（Day 17 拍板）
 
@@ -38,37 +65,92 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
 - 控制台 SQL 编辑器会对 `anon` 弹"检测到 Supabase 内置角色"警告——**假警报**（`SELECT rolname FROM pg_roles` 实测 `anon` 存在），点"仍然执行"即可
 - RLS 未启用（本期只读公开数据，不需要；第二期有用户数据再议）
 
-## 🔑 网关行为（Day 17 实测新知识，很反直觉）
+## 🔑 网关行为（Day 17 发现 / Day 18 定解）
 
-**HTTP 网关按路由前缀匹配后，会把前缀从路径中剥掉再转发给函数**：
+### 1. 网关会剥掉路由前缀再转发（Day 17 实测）
 
-| 浏览器访问 | 函数收到的 `pathname` |
+| 路由配成 `/api/scenes` 时 | 函数收到的 `pathname` |
 |---|---|
 | `/api/scenes` | `/` |
 | `/api/scenes/scene-1` | `/scene-1` |
 
-- 取证方法：临时加 `?debug=1` 分支回吐 `req.url`/`pathname`，实测后已删除
-- 因此 `resolveMode` 同时兼容两种形态（剥前缀的 `/scene-1` 与完整的 `/api/scenes/scene-1`），防网关行为变化
-- `health` 函数从不检查路径，所以这个行为在 Day 15–16 一直没暴露
+`health` 函数从不检查路径，所以这个行为在 Day 15–16 一直没暴露。
 
-## 错误分支（与 api-contract §2.2/§4.2 一致）
+### 2. 方案 K：只配 `/api` 一条，管住全部接口（Day 18 实测跑通）
 
-| 场景 | 状态码 | 响应 |
+Day 18 一度陷入困境：若给 `/api/resources`、`/api/tasks` 各配一条长路由，它们转发到函数后**全都变成 `/`，无法区分**。
+
+解法是把路由配成**最短公共前缀**：
+
+| 网关配置 | 浏览器访问 | 函数收到 |
 |---|---|---|
-| 路径不匹配 | 404 | `{"ok":false,"error":"invalid_path"}` |
-| id 格式非法 | 400 | `{"ok":false,"error":"invalid_param"}` |
-| id 不存在 | 404 | `{"ok":false,"error":"scene_not_found"}` |
-| 非 GET | 405 | `{"ok":false,"error":"method not allowed"}` |
-| 环境变量缺失 | 500 | `{"ok":false,"error":"config_error"}` |
-| REST 调用失败 | 500 | `{"ok":false,"error":"internal_error"}` |
+| **`/api`（仅此一条）** | `/api/scenes` | `/scenes` |
+| | `/api/scenes/scene-1` | `/scenes/scene-1` |
+| | `/api/resources` | `/resources` |
+| | `/api/instruments` | `/instruments` |
+| | `/api/tasks` | `/tasks` |
+| | `/api/health` | `/health` |
 
-## 铁律（沿用 health 的两条 + 本函数特有的一条）
+**收益**：① 多接口天然分得开；② **以后加接口只改本函数代码，不用再碰网关**；③ 契约里登记的浏览器地址一个字不变。
 
-1. `package.json` 保持模板原样，永不替换
-2. `index.js` 纯 ASCII、零 `//` 注释（本文件 2742 字节，`node --check` exit 0，非 ASCII 字节 0）
-3. **函数收到的路径 = 浏览器路径减去路由前缀**（见上节），改路由/加接口时先想这条
+**配套**：`resolveRoute` **同时兼容剥前缀与未剥前缀两种形态**（`/scenes` 与 `/api/scenes` 都认），并给 `/health` 留兜底分支。
 
-## 待办（Day 18+）
+> ⚠️ 网关**不支持通配符**——方案 K 靠的是**前缀匹配**，不是 `/api/*`。
 
-- 余下 3 个读接口（`/api/resources`、`/api/instruments`、`/api/tasks`）往本函数加路由分支即可（网关再各配一条路由）
-- 前端接接口卡 CORS，排 Day 20
+## 错误响应（Day 18 起三字段，与 api-contract §2.3 一致）
+
+```json
+{ "ok": false, "error": "invalid_param", "message": "type 取值不在允许范围内。可选值：dc_power、multimeter、oscilloscope、signal_gen、lcr、curve_tracer" }
+```
+
+| 场景 | 状态码 | `error` |
+|---|---|---|
+| 路径完全不匹配（多段） | 404 | `invalid_path` |
+| 单段未知路径 / 场景编号格式错 | 400 | `invalid_param` |
+| 场景 id 不存在 | 404 | `scene_not_found` |
+| `type` 不在 6 个枚举内 | 400 | `invalid_param` |
+| 非 GET | 405 | `method_not_allowed` |
+| 环境变量缺失 | 500 | `config_error` |
+| REST 调用失败 | 500 | `internal_error` |
+
+- `error` 是**英文机器标识，不随文案变**；`message` 是中文人话，按每个分支各写。完整 7 条文案表见 `api-contract.md` §2.3。
+- **中文写法**：受"纯 ASCII"铁律约束，`index.js` 里写成 `\uXXXX` 转义（如 `"\u63a5\u53e3\u5730\u5740\u4e0d\u5b58\u5728"` → "接口地址不存在"）。代价是可读性差，故契约里那张文案表**兼作转义对照表**。
+
+## 服务端日志（Day 18 新增）
+
+每个请求一行，形如：
+
+```
+[2026-10-03T12:46:54.090Z] GET /hello bad_scene_id -> 400 1ms
+```
+
+字段依次为：ISO 时间 · 方法 · 函数收到的路径 · 命中的模式 · 状态码 · 耗时(ms)。
+
+**只打这六样，绝不打 `req.headers`**（理由见铁律四）。
+
+## 🚨 四条铁律（第 4 条是 Day 18 拿事故换来的）
+
+1. **`package.json` 保持模板原样，永不替换**——换任何自写版本必挂 `InvalidParameter.Dependency`
+2. **`index.js` 纯 ASCII、零 `//` 注释**——控制台在线编辑器粘贴会吃换行，`//` 会把后文吞掉；中文一律 `\uXXXX`
+3. **函数收到的路径 = 浏览器路径 − 网关路由前缀**（见上节），改路由/加接口时先想这条
+4. **永不回吐 `req.headers`** ⚠️
+
+### 铁律四的由来（2026-10-03 真实事故，务必读）
+
+Day 18 调试路径时加过一个 `?debug=1` 分支回吐 `req.headers`，结果**把云凭据泄到了公网上**：
+
+- 腾讯云 SCF 会把函数运行时环境变量与**临时密钥**以请求头形式注入，`x-scf-private-environment` 里**明文包含**：
+  - `TENCENTCLOUD_SECRETID` / `TENCENTCLOUD_SECRETKEY` / `TENCENTCLOUD_SESSIONTOKEN`（腾讯云临时凭据）
+  - `PUBLISHABLE_KEY`、`SCF_NAMESPACE`
+- 另有 `x-cloudbase-context`（base64）内含 `serviceAccessToken`
+
+**调试口是公网可访问的** → 任何人访问该地址都能刷出一份凭据。自部署到发现约 17 分钟，期间一直开放。
+
+**教训**：要调试就**只回吐字段白名单**（`url` / `pathname` / `method` 三样足够），**永远不要整包回吐 headers**。事后已删除调试分支并远程复核确认关闭（对 12 个敏感标记扫描，0 命中）。
+
+## 待办
+
+- **函数名 `scenes` 与实际职责不符**（管着 4 类资源）：**已决定不改**——不为命名去动已上线的东西，Day 20 联调后再一并整理
+- `/api/health` 究竟由 `health` 函数还是本函数的 `/health` 兜底分支响应，**目前无法分辨**（两者返回相同 JSON）；功能无影响，排查时需靠函数日志判断
+- 前端接接口卡 **CORS**，排 Day 20
+- 中文 `message` 的 `\u` 转义可读性差，根治需把文案外置（本期不做）
