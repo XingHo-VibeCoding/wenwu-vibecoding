@@ -1,24 +1,21 @@
-import { MOCK } from "../data/mock.js";
-
-export default function TransferView() {
-  const { scenes, resources } = MOCK;
-
+export default function TransferView({ scenes, resources }) {
   return (
     <section className="view" aria-label="传输指南">
       <h2>手机 ↔ 电脑 传输指南</h2>
       <p className="mv-desc">
-        四个高频场景一目了然。本版是 React 骨架（mock 数据）；分步详情将在 Day 16–20 接上真实接口后补全。
+        四个高频场景一目了然。数据来自云端数据库；断网或接口异常时自动使用内置离线内容。
       </p>
 
       <ul className="mv-cards">
         {scenes.map((s) => (
-          <li key={s.anchor} id={s.anchor}>
-            <a className="mv-card" href={"#/transfer/" + s.anchor}>
+          <li key={s.id} id={s.id}>
+            <a className="mv-card" href={"#/transfer/" + s.id}>
               <span className="mv-card-no">{s.no}</span>
               <h3>{s.name}</h3>
-              <p>{s.desc}</p>
+              <p>{s.description}</p>
               <p className="mv-card-meta">
-                方式：{s.method} ｜ {s.steps} 步 ｜ 难度 {s.difficulty} ｜ 耗时 {s.time}
+                方式：{s.method} ｜ {s.step_count} 步 ｜ 难度 {s.difficulty} ｜ 耗时{" "}
+                {s.time_cost}
               </p>
             </a>
           </li>
@@ -32,7 +29,7 @@ export default function TransferView() {
             <a href={r.url} target="_blank" rel="noopener noreferrer">
               {r.name}
             </a>
-            <span className="res-use">{r.use}</span>
+            <span className="res-use">{r.purpose}</span>
           </li>
         ))}
       </ul>

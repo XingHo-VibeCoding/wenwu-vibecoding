@@ -1,4 +1,4 @@
-# cloudfunctions/scenes —— 全部 6 个读接口 + 1 个写接口（Day 17 建立 / Day 18 扩容 / Day 19 分层）
+# cloudfunctions/scenes —— 全部 6 个读接口 + 1 个写接口（Day 17 建立 / Day 18 扩容 / Day 19 分层 / Day 20 CORS）
 
 > 函数名 `scenes` 是 Day 17 起的名字，Day 18 起它实际管着 **4 类资源、7 个接口（6 读 + 1 写）**。
 > **名字有误导，但刻意不改**（不为改名去动已上线的东西，见文末待办）。
@@ -54,6 +54,8 @@ cloudfunctions/scenes/
 
 ## 部署状态（2026-10-03，Day 18 收工）
 
+> ⚠️ **Day 20 CORS 结论反转，撤头版待部署**：函数侧 CORS 代码已**全部撤除**（实测平台网关对名单内 Origin 自动回显 ACAO，函数再加必成双值被浏览器拒，见下方「CORS」节）；`index.js` 现与 Day 19 提交版逐字一致，**线上跑的仍是"加头版"**——重新部署后才恢复干净。下表为 Day 18 版实测记录，重部署后按「回归验证 ②」再走一遍。
+
 **✅ 已上线并实测**（用户控制台截图 + AI 远程 python urllib 独立复核，11 个地址）：
 
 | 地址 | 实测结果 |
@@ -71,8 +73,8 @@ cloudfunctions/scenes/
 | `/api/hello` | `400` + 中文（单段未知路径） |
 
 - 函数名：`scenes`（模板：HTTP nodejs - Hello World，Web 函数模式，监听 9000）
-- 部署方式：控制台在线编辑器（**只替换 `index.js`**，`package.json` 保持模板原样）
-- 当前 `index.js` 体检：`node --check` exit 0 ｜ 非 ASCII 字节 0 ｜ 18 条路径本地路由自测全通过
+- 部署方式：控制台在线编辑器（Day 20 这次**仍只替换 `index.js`**，`repository.js` 不动，`package.json` 保持模板原样）
+- 当前 `index.js` 体检（Day 20 撤头版＝Day 19 版逐字一致）：11162 字节 ｜ `node --check` exit 0 ｜ 非 ASCII 字节 0 ｜ 零注释；CORS 结论反转经过见「CORS」节
 
 ## 架构
 
@@ -98,7 +100,7 @@ cloudfunctions/scenes/
 3. ⚠️ `repository.js` **不新增 `package.json`**——沿用 `index.js` 所在函数的模板 `package.json`（铁律一）
 4. 部署后**必须实测**：只贴 `index.js` 的典型报错是 `Cannot find module './repository'`，出现在函数日志里、对外表现为 500 `internal_error`
 
-> 🔎 **待实测**：控制台在线编辑器能否一次部署两个文件，尚未验证。这是 Day 19 引出的新未知点。
+> ✅ **已验证（2026-10-04）**：控制台在线编辑器一次部署两个文件成功（用户实测，函数 200 正常响应）。Day 19 引出的这个未知点关闭。
 
 ## 鉴权（Day 17 拍板）
 
@@ -145,6 +147,50 @@ Day 18 一度陷入困境：若给 `/api/resources`、`/api/tasks` 各配一条�
 **配套**：`resolveRoute` **同时兼容剥前缀与未剥前缀两种形态**（`/scenes` 与 `/api/scenes` 都认），并给 `/health` 留兜底分支。
 
 > ⚠️ 网关**不支持通配符**——方案 K 靠的是**前缀匹配**，不是 `/api/*`。
+
+## 🌐 CORS（Day 20：结论反转——平台已内置，函数零 CORS 代码）
+
+**背景**：前端域 `tcloudbaseapp.com` ≠ 接口域 `app.tcloudbase.com`，浏览器跨域必拦；网关侧「跨域配置」入口是付费（💎）。
+
+**Day 20 走了个来回，两个方案都实测过**：
+
+1. ~~方案甲：函数自带 CORS 响应头~~（`CORS_ORIGIN` 常量 + `corsHeaders()` + `sendJson` 合并 + `OPTIONS` 204 短路）——**部署实测被推翻**：平台网关对**已登记域**的请求会**自动回显一个 `Access-Control-Allow-Origin`（值＝请求 Origin）**，函数再手动加一个 → 响应里出现**两个 ACAO** → 浏览器直接拒收（`contains multiple values ... but only one is allowed`）。代码已全部回退（index.js 回到 Day 19 版，git 哈希与 `126edba` 一致）。
+2. **最终方案：函数零 CORS 代码，全靠平台内置行为**。
+
+**实测证据（2026-10-04，python urllib 直连网关）**：
+
+| # | 请求 | 实测 |
+|---|---|---|
+| 1 | GET 带 Origin＝静态托管域 | ACAO＝**静态域 ×2**（函数值 + 平台回显）→ 浏览器拒收 |
+| 2 | OPTIONS 预检（ACRM: GET） | `204`，ACAM＝`GET`（**按请求回显**，非函数写死值 → 预检由平台接管） |
+| 3 | OPTIONS 预检（ACRM: POST + ACRH: content-type） | `204`，ACAM＝`POST`、ACAH＝`Content-Type` → **POST JSON 预检可过** |
+| 4 | GET 带 Origin＝example.com（名单外） | 平台**不回显**（ACAO 只剩函数那一个静态域值） |
+| 5 | GET 带 Origin＝webapps 域 | ACAO＝webapps + 静态域两个值（平台回显 + 函数值，复现浏览器报错） |
+
+**结论**：预检平台接管、名单内 Origin 平台自动回显——函数加的静态域头在名单内 Origin 场景下**永远造成双值**。撤头后：静态域页面拿到平台回显的单值，直接通过。
+
+**⚠️ 域名陷阱（Day 20 新发现）**：控制台静态托管页的「**访问应用**」按钮打开的是 `wenwu-vibecoding-<环境ID>.webapps.tcloudbase...`（Web 应用托管预览域），**不是**正式静态托管地址（api-contract §1.1）。**验证与前端一律用正式地址**：
+
+```
+https://wenwu-331122-d6gyrwmum2a734671-1498877015.tcloudbaseapp.com/wenwu-vibecoding/
+```
+
+**线上验证（函数回退版部署后）**：
+
+1. 控制台重新部署 `scenes`（只替换 `index.js`——本次内容＝Day 19 版，CORS 代码全部撤除；`repository.js` / `package.json` 不动）
+2. 浏览器**地址栏直接粘贴**上面的正式地址打开（不要点「访问应用」）
+3. F12 → Console 跑（首次粘贴需先输入"允许粘贴"回车解锁）：
+
+```js
+fetch("https://wenwu-331122-d6gyrwmum2a734671-1498887015.ap-shanghai.app.tcloudbase.com/api/scenes")
+  .then(function (r) { return r.json(); })
+  .then(function (d) { console.log("CORS OK", d.ok, d.count); })
+  .catch(function (e) { console.error("FAIL", e); });
+```
+
+预期 `CORS OK true 4`。
+
+> ⚠️ **待观察项**：平台回显/预检接管行为无官方文档背书，属实测发现（已同步 api-contract §7.2 第 16 项）。若未来平台行为变化导致 CORS 失效，退路＝函数加"动态回显 Origin（限两个已知域）"——**必须先确认平台停止回显再加**，否则又是双值。
 
 ## 错误响应（Day 18 起三字段，与 api-contract §2.3 一致）
 
@@ -238,7 +284,7 @@ Day 18 调试路径时加过一个 `?debug=1` 分支回吐 `req.headers`，结�
 
 - **函数名 `scenes` 与实际职责不符**（管着 4 类资源）：**已决定不改**——不为命名去动已上线的东西，Day 20 联调后再一并整理
 - `/api/health` 究竟由 `health` 函数还是本函数的 `/health` 兜底分支响应，**目前无法分辨**（两者返回相同 JSON）；功能无影响，排查时需靠函数日志判断
-- **多文件部署方式待实测**（Day 19 新增）：控制台在线编辑器能否一次部署 `index.js` + `repository.js`，未验证
+- ~~**多文件部署方式待实测**~~ → **✅ 已验证（2026-10-04）**：控制台一次部署两文件成功
 - **线上真数据回归待实测**（Day 19 新增）：见上表 ②，尤其第 13 条 409 分支
-- 前端接接口卡 **CORS**，排 Day 20
+- ~~前端接接口卡 **CORS**~~ → **平台已内置（Day 20 实测反转），函数撤头版待重新部署**：部署 + 正式地址 Console 实测（见「CORS」节）；**通过后前端才动工**
 - 中文 `message` 的 `\u` 转义可读性差，根治需把文案外置（本期不做）

@@ -1,12 +1,11 @@
 import { useMemo, useState } from "react";
-import { INSTRUMENT_OPS, MOCK, TASK_INDEX } from "../data/mock.js";
 import OpItem from "../components/OpItem.jsx";
 
 function norm(s) {
   return String(s == null ? "" : s).toLowerCase();
 }
 
-export default function SearchView() {
+export default function SearchView({ scenes, instruments, tasks }) {
   const [taskQ, setTaskQ] = useState("");
   const [insQ, setInsQ] = useState("");
 
@@ -14,30 +13,30 @@ export default function SearchView() {
   const taskHits = useMemo(() => {
     const q = norm(taskQ.trim());
     if (!q) return null;
-    return TASK_INDEX.filter((t) => {
-      const s = MOCK.scenes.find((x) => x.anchor === t.scene);
+    return tasks.filter((t) => {
+      const s = scenes.find((x) => x.id === t.scene_id);
       const hay = norm(
-        t.label + " " + (s ? s.no + " " + s.name + " " + s.desc + " " + s.method : "")
+        t.label + " " + (s ? s.no + " " + s.name + " " + s.description + " " + s.method : "")
       );
       return hay.indexOf(q) > -1;
     });
-  }, [taskQ]);
+  }, [taskQ, tasks, scenes]);
 
   // 仪器操作搜索：命中 操作名 + 关键词表
   const insHits = useMemo(() => {
     const q = norm(insQ.trim());
     if (!q) return null;
-    return INSTRUMENT_OPS.filter((op) => {
+    return instruments.filter((op) => {
       if (norm(op.title).indexOf(q) > -1) return true;
-      return op.k.some((k) => norm(k).indexOf(q) > -1);
+      return op.keywords.some((k) => norm(k).indexOf(q) > -1);
     });
-  }, [insQ]);
+  }, [insQ, instruments]);
 
   return (
     <section className="view" aria-label="搜索">
       <h2>搜索</h2>
       <p className="sv-desc">
-        两个搜索框各管一路：上面找「要办的事」，下面查「仪器怎么用」。数据全部内置在页面里，断网照常用。
+        两个搜索框各管一路：上面找「要办的事」，下面查「仪器怎么用」。数据来自云端数据库，断网或接口异常时自动使用内置离线内容。
       </p>
 
       <div className="sv-field">
@@ -59,10 +58,10 @@ export default function SearchView() {
         ) : (
           <ul className="sv-list">
             {taskHits.map((t) => {
-              const s = MOCK.scenes.find((x) => x.anchor === t.scene);
+              const s = scenes.find((x) => x.id === t.scene_id);
               return (
                 <li key={t.label}>
-                  <a href={"#/transfer/" + t.scene}>
+                  <a href={"#/transfer/" + t.scene_id}>
                     <b>{t.label}</b>
                     {s ? " → " + s.no + " " + s.name + "（" + s.method + "）" : ""}
                   </a>
@@ -94,7 +93,7 @@ export default function SearchView() {
             <p className="sv-count">{insHits.length} 条匹配结果</p>
             <ul className="ins-list">
               {insHits.map((op, i) => (
-                <OpItem key={op.t + op.title + i} op={op} />
+                <OpItem key={op.device_name + op.title + i} op={op} />
               ))}
             </ul>
           </>

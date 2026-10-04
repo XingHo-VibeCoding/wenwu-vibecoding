@@ -1,28 +1,30 @@
 import { useMemo, useState } from "react";
-import { INSTRUMENT_OPS } from "../data/mock.js";
 import OpItem from "../components/OpItem.jsx";
 
-// 类型标签与第 2 周静态站（index.html 的 .ins-chip）完全一致
+// 类型标签与第 2 周静态站（index.html 的 .ins-chip）完全一致；
+// 筛选沿用「device_name 前缀子串匹配」（接口与 mock 的 device_name 同值，如「万用表 GDM-8341」）
 const TYPES = ["全部", "直流电源", "万用表", "示波器", "信号发生器", "LCR测试仪", "图示仪"];
 
 function norm(s) {
   return String(s == null ? "" : s).toLowerCase();
 }
 
-export default function DeviceView() {
+export default function DeviceView({ instruments }) {
   const [type, setType] = useState("全部");
   const [q, setQ] = useState("");
 
   const hits = useMemo(() => {
     const pool =
-      type === "全部" ? INSTRUMENT_OPS : INSTRUMENT_OPS.filter((op) => op.t.indexOf(type) > -1);
+      type === "全部"
+        ? instruments
+        : instruments.filter((op) => op.device_name.indexOf(type) > -1);
     const key = norm(q.trim());
     if (!key) return pool;
     return pool.filter((op) => {
       if (norm(op.title).indexOf(key) > -1) return true;
-      return op.k.some((k) => norm(k).indexOf(key) > -1);
+      return op.keywords.some((k) => norm(k).indexOf(key) > -1);
     });
-  }, [type, q]);
+  }, [type, q, instruments]);
 
   const filtered = type !== "全部" || q.trim().length > 0;
 
@@ -72,7 +74,7 @@ export default function DeviceView() {
       ) : (
         <ul className="ins-list">
           {hits.map((op, i) => (
-            <OpItem key={op.t + op.title + i} op={op} />
+            <OpItem key={op.device_name + op.title + i} op={op} />
           ))}
         </ul>
       )}
