@@ -1,7 +1,6 @@
 const http = require("http");
 
-const REST_BASE =
-  "https://wenwu-331122-d6gyrwmum2a734671.api.tcloudbasegateway.com/v1/rdb/rest";
+const repo = require("./repository");
 
 const SERVICE_NAME = "wenwu-vibecoding";
 
@@ -70,32 +69,6 @@ function failMsg(res, statusCode, errorCode, message) {
     error: errorCode,
     message: message
   });
-}
-
-async function fetchTable(pathWithQuery, key) {
-  const resp = await fetch(REST_BASE + pathWithQuery, {
-    headers: { Authorization: "Bearer " + key }
-  });
-  if (!resp.ok) {
-    throw new Error("upstream_status_" + resp.status);
-  }
-  return resp.json();
-}
-
-async function patchTable(pathWithQuery, body, key) {
-  const resp = await fetch(REST_BASE + pathWithQuery, {
-    method: "PATCH",
-    headers: {
-      Authorization: "Bearer " + key,
-      "Content-Type": "application/json",
-      Prefer: "return=representation"
-    },
-    body: JSON.stringify(body)
-  });
-  if (!resp.ok) {
-    throw new Error("upstream_status_" + resp.status);
-  }
-  return resp.json();
 }
 
 function readJsonBody(req) {
@@ -269,11 +242,7 @@ async function handleMeasure(req, res) {
 
   var rows;
   try {
-    rows = await fetchTable(
-      "/steps?scene_id=eq." + sceneId + "&order_no=eq." + orderNo +
-        "&select=scene_id,order_no,difficulty_level,time_minutes,measure_status",
-      key
-    );
+    rows = await repo.findStep(sceneId, orderNo, key);
   } catch (e) {
     failMsg(res, 500, "internal_error", MSG.write_failed);
     return;
@@ -296,15 +265,7 @@ async function handleMeasure(req, res) {
 
   var updated;
   try {
-    updated = await patchTable(
-      "/steps?scene_id=eq." + sceneId + "&order_no=eq." + orderNo,
-      {
-        difficulty_level: level,
-        time_minutes: minutes,
-        measure_status: "measured"
-      },
-      key
-    );
+    updated = await repo.markStepMeasured(sceneId, orderNo, level, minutes, key);
   } catch (e) {
     failMsg(res, 500, "internal_error", MSG.write_failed);
     return;
@@ -379,26 +340,18 @@ const server = http.createServer(async function (req, res) {
 
   try {
     if (route.mode === "scenes_list") {
-      var scenesAll = await fetchTable("/scenes?select=*&order=no.asc", key);
+      var scenesAll = await repo.listScenes(key);
       ok(res, { count: scenesAll.length, items: scenesAll });
       return;
     }
 
     if (route.mode === "scene_detail") {
-      var scenes = await fetchTable(
-        "/scenes?id=eq." + route.id + "&select=*",
-        key
-      );
+      var scenes = await repo.findScene(route.id, key);
       if (!scenes.length) {
         fail(res, 404, "scene_not_found", "scene_not_found");
         return;
       }
-      var steps = await fetchTable(
-        "/steps?select=order_no,content,difficulty_level,time_minutes,caution,measure_status&scene_id=eq." +
-          route.id +
-          "&order=order_no.asc",
-        key
-      );
+      var steps = await repo.listStepsOfScene(route.id, key);
       var detail = scenes[0];
       detail.steps = steps;
       ok(res, { item: detail });
@@ -406,10 +359,7 @@ const server = http.createServer(async function (req, res) {
     }
 
     if (route.mode === "resources") {
-      var resourceRows = await fetchTable(
-        "/resources?select=id,name,url,purpose,kind&order=id.asc",
-        key
-      );
+      var resourceRows = await repo.listResources(key);
       ok(res, { count: resourceRows.length, items: resourceRows });
       return;
     }
@@ -426,7 +376,7 @@ const server = http.createServer(async function (req, res) {
       if (type) {
         qs += "&device_type=eq." + type;
       }
-      var rows = await fetchTable("/instruments?" + qs, key);
+      var rows = await repo.listInstruments(qs, key);
       if (q) {
         var kept = [];
         for (var i = 0; i < rows.length; i++) {
@@ -441,10 +391,7 @@ const server = http.createServer(async function (req, res) {
     }
 
     if (route.mode === "tasks") {
-      var tasks = await fetchTable(
-        "/tasks?select=id,label,scene_id&order=id.asc",
-        key
-      );
+      var tasks = await repo.listTasks(key);
       ok(res, { count: tasks.length, items: tasks });
       return;
     }

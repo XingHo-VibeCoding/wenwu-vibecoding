@@ -6,6 +6,7 @@
 > **v2.2 修订** ｜ 2026-10-02（Day 17）｜ 读接口上线：`GET /api/scenes` 与 `GET /api/scenes/:id` 已实现并公网可访问（零依赖 `fetch` 调 CloudBase PostgreSQL REST API）。**本次仍只补注、不改结构**——但 Day 17 实测发现 5 处旧口径与实现对不上（接口状态 / 网关路由 / 现状表 / 数据流走向 / 凭据形态），逐处加注说明，原文一律保留划线不改，避免丢历史。接口明细以 `api-contract.md` **v1.2** 为唯一口径。
 > **v2.3 修订** ｜ 2026-10-03（Day 18）｜ 读接口**全部点亮**：`GET /api/resources`、`GET /api/instruments`、`GET /api/tasks` 已实现并公网实测通过（与 `scenes` 同函数）。**本次仍只补注、不改结构**，逐处标注 Day 18 实测与旧口径的 **4 处不一致**：① 4.1 接口表余下 3 个接口 ⏳ 占位 → ✅ 已上线；② 4.1 网关路由的"每加一个接口都要单独配路由"**只对"与浏览器路径等长的路由"成立**，Day 18 改用短前缀 `/api` 一条即管全部；③ 4.1 引用版本 v1.2 → **v1.3**；④ 5.2 现状表云函数段更新。接口明细以 `api-contract.md` **v1.3** 为唯一口径。
 > **v2.4 修订** ｜ 2026-10-03 晚（Day 18 晚补做）｜ **写入接口上线（本期唯一一个）**：`POST /api/steps/measure` 已实现并公网实测通过（200 写入 / 409 重复拒绝 / 400 缺字段 / 读回 `measured` 四项全过）。它把某一步的**实测难度与耗时**写回 `steps` 表，服务 AC-08。**本次仍只补注、不改结构**，逐处补记 **3 处**：① 4.1 接口表**新增该行**——本期接口从"6 个读"变为"**6 读 + 1 写**"；② 4.1 网关路由注补记 **POST 同样被 `/api` 那条路由放行**（Day 17–18 只验过 GET，"非 GET 会不会被网关挡下"是当次关闭的未知点）；③ 5.2 现状表与数据流补上**写入方向**（此前两张图都只画了"读"）。另记一笔**部署前置**：写入接口比读接口多需要一个 `GRANT UPDATE`，见 4.1 注。原文一律划线保留不改。接口明细以 `api-contract.md` **v1.4** 为唯一口径。
+> **v2.5 修订** ｜ 2026-10-04（Day 19）｜ **云函数内部分层重构**：把原先全塞在 `cloudfunctions/scenes/index.js` 里的数据库访问代码拆出独立文件 `repository.js`，形成「**接口层**（接请求·校验·组装响应）/ **数据访问层**（持有 REST 地址·拼查询串·发 fetch）」两层。**本次只改内部结构，不改任何对外行为**——接口路径、字段名、响应形状、状态码全部与 Day 18 收工时一致（回归清单见 `cloudfunctions/scenes/README.md`）。文档侧新增 **5.3 节云函数内部分层**（含分层 mermaid 图 + 两层职责边界表 + 拆分理由）。**代价（如实记录）**：`index.js` 现 `require("./repository")`，**部署需两个文件一起上传**，控制台在线编辑器是否支持多文件**尚未实测**——这是 Day 19 引出的新未知点。接口明细仍以 `api-contract.md` **v1.4** 为唯一口径（**本次未改契约，接口口径一字未动**）。
 >
 > **本文档的依据**：`PRD.md` ~~v2.0（2026-09-30）~~ → **v2.2（2026-10-03）** + **`api-contract.md` v1.4（2026-10-03）** + 各版本对应日期的拍板。（PRD 于 Day 18 晚升 v2.2：第 7 节「暂不做清单」第 218 行「本期不做任何写入类接口」**原文划线保留、补注在后**，开出一个写入例外，范围与风险敞口见该节。）
 > **本文档的读者**：Day 6-7 写代码的我、Day 7 上线的我、Day 16 起建表写接口的我、以后做第二期的我。
@@ -333,6 +334,53 @@ flowchart LR
 
 **Day 16–20 的推进顺序**：建表补数据（D16）→ 写查询接口（**D17–D18 完成，6 个读接口全上线**）→ 写实测数据接口（**D18 晚完成，1 个写入接口**）→ 配 CORS 并让前端接真实接口（D20）→ 四状态改由真实请求驱动。
 
+### 5.3 云函数内部分层（Day 19 重构后）
+
+上面几张图都站在「函数外部」看链路。**Day 19 做的是函数「内部」的整理**：把原来全塞在 `index.js` 里的数据库访问代码，拆到独立的 `repository.js`，形成两层。
+
+```mermaid
+flowchart TB
+    subgraph SCF["云函数 scenes（CloudBase，监听 9000）"]
+        direction TB
+        subgraph L1["接口层 · index.js"]
+            R[resolveRoute<br/>路径 → 模式]
+            V[参数校验<br/>白名单 · 必填 · 区间]
+            H[组装响应<br/>ok / fail / failMsg]
+        end
+        subgraph L2["数据访问层 · repository.js"]
+            S[selectRows<br/>通用 GET]
+            P[patchRows<br/>通用 PATCH]
+            T[表级函数<br/>listScenes · findScene<br/>listStepsOfScene · listResources<br/>listInstruments · listTasks<br/>findStep · markStepMeasured]
+        end
+    end
+    RR[浏览器请求] --> R
+    R --> V --> H
+    V -->|调 repo.xxx| T
+    T --> S
+    T --> P
+    S -->|fetch| NET[数据库 REST API 网关]
+    P -->|fetch| NET
+    H -->|JSON| RR
+
+    classDef l1 fill:#e8f0fe,stroke:#4a6fa5,color:#1a2b45
+    classDef l2 fill:#fdeee8,stroke:#a5644a,color:#451f1a
+    class R,V,H l1
+    class S,P,T l2
+```
+
+**分层契约（改代码时对照）**：
+
+| 层 | 允许 | 禁止 |
+|---|---|---|
+| 接口层 `index.js` | 拿 `req`/`res`、解析路径与 query、校验参数、调 `repo.*`、写响应 | 出现 REST 路径字符串、表名、`fetch` 调用 |
+| 数据访问层 `repository.js` | 持有 `REST_BASE`、拼 PostgREST 查询串、发 `fetch`、返回原始 JSON | 判断业务规则、接收 `req`/`res`、写响应 |
+
+**为什么这么拆**：① 换数据源（比如将来换直连 pg）只改 `repository.js` 一个文件；② 表结构变化时，改动集中在数据访问层；③ 接口层变薄后，"一个接口在做几件事"一眼能数清。**本次只动结构，不动任何接口行为**——路径、字段名、响应形状、状态码全部原样（回归清单见 `cloudfunctions/scenes/README.md`）。
+
+**⚠️ 代价（如实记录）**：`index.js` 通过 `require("./repository")` 引用另一文件，**部署时必须两个文件一起上传**（此前只需贴一个 `index.js`）。控制台在线编辑器是否支持多文件，**尚未实测**，这是 Day 19 引出的新未知点。
+
+> **Day 19 注（v2.5，2026-10-04）**：本节图与表为 Day 19 新增。函数**对外行为**与 Day 18 收工时完全一致，本轮只改内部结构，接口清单仍是 **6 读 + 1 写**。
+
 ---
 
 ## 6. 错误处理
@@ -454,4 +502,4 @@ flowchart LR
 | **v2.1** | **2026-10-01** | **数据库落地（Day 16）：5 张表已在 CloudBase PostgreSQL 实际建成并灌入 72 行真实数据**（`db/schema.sql` 建表 + `db/seed.sql` 种子，两脚本均可反复整份执行；行数与 `scenes`↔`steps` 关联关系经控制台实测核对）。本次改动**刻意克制**：第 3 节第一层原文那句「本项目没有数据库」**保留不改**，只在其后加一行注，说明该句对云开发版已过期、云开发版表结构以 `api-contract.md` v1.1 第 3 节为唯一口径——**不在此重复第二层字段，避免两份文档打架**。**引擎注**：`api-contract.md` 同步升 v1.1（5 处列名定稿 / `prerequisite` 收紧 NOT NULL / 各接口示例改用真实字段与真实数据 / 第 7 节拆「已关闭 6 项·未关闭 7 项」）；`PRD.md` 6.1 字段欠账表 5 项中 4 项标注关闭；Day 16 **没有写任何接口**——云函数仍只有 `/api/health`，前端仍读本地 `mock.js`，**库/云函数/前端三层各在，尚未接通** |
 | **v2.2** | **2026-10-02** | **读接口上线（Day 17）：`GET /api/scenes` 与 `GET /api/scenes/:id` 已实现并公网实测通过**（新建云函数 `cloudfunctions/scenes/`，零依赖 `fetch` 调 CloudBase PostgreSQL REST API；Publishable Key + `anon` GRANT；"改库一行数据、接口返回跟着变"双向验证通过，五个地址由 AI 独立远程复核）。**本次仍只补注、不改结构**，逐处标注 Day 17 实测与旧口径的 **5 处不一致**：① 4.1 接口表两个 `scenes` 接口 ⏳ 占位 → ✅ 已上线；② 4.1 网关路由「`/api/*` 通配符」**不存在**，实际是逐条精确路由 + **网关剥前缀**（`/api/scenes` → 函数收到 `/`；`/api/scenes/scene-1` → 收到 `/scene-1`，靠临时 `?debug=1` 调试口查实）；③ 5.2 现状表 PostgreSQL/云函数状态更新；④ 5.2 数据流图 `云函数 --SQL 查询--> PG` 更正为 `云函数 --REST API--> PG`（多一跳，换零依赖）；⑤ 6 节/7 节/2 节把凭据说成"数据库连接串/密码"之处更正为"**Publishable Key**"（**"凭据不进代码"原则不变，变的只是凭据形态**）。另澄清：CORS 在 Day 17 **不阻塞**（地址栏直连不走跨域），排 Day 20 不变。**引擎注**：`api-contract.md` 同步升 v1.2（新增 §1.1 三域名对照、§4.4 实现技术口径、§4.2.2 省略 `id`/`scene_id` 的理由与代价、§2.3 错误形状拍板、§5.1 现状改"库↔云函数已通"、§7 欠账重排）；`skills/cloudbase-postgres-ops/SKILL.md` 新增第 9 节（REST API 接线 + 网关剥前缀 + 字段差集复核法）；PRD 未改 |
 | **v2.3** | **2026-10-03** | **读接口全部点亮（Day 18）：`GET /api/resources`、`GET /api/instruments`、`GET /api/tasks` 已实现并公网实测通过**（与 `scenes` 同函数；实测 `resources` 6 条 / `instruments` 34 条 / `tasks` 8 条；`instruments` 支持 `type` + `q` 过滤，非法 `type` → 400 且**带中文提示**；11 个地址由 AI 独立远程复核）。**本次仍只补注、不改结构**，逐处标注 Day 18 实测与旧口径的 **4 处不一致**：① 4.1 接口表余下 3 个接口 ⏳ 占位 → ✅ 已上线（至此本表无占位项）；② 4.1 网关路由的 v2.2 结论「每加一个接口都要单独配一条路由」**只对"与浏览器路径等长的路由"成立**——Day 18 改配短前缀 `/api` 一条即覆盖其下全部路径（函数收到 `/scenes`、`/resources`…），**三个新接口上线总共只改了一次网关**，故 4.1 与 5.2 两处相关表述均加注修正；③ 4.1 两处交叉引用由 `api-contract.md` v1.2 → **v1.3**（`scenes` 仍在 §4.2，三个新接口在 §4.3）；④ 5.2 现状表云函数段由"部分点亮"改为"**全部点亮**"。**另记两笔**：⑴ 错误响应 Day 18 起为**三字段** `{ok,error,message}`——这是本期唯一一次后一天推翻前一天拍板（Day 17 拍两字段），理由与代价见契约 §2.3，`/api/health` 的 405 为唯一例外；⑵ **Day 18 发生一次凭据泄露事故并已止血**：临时调试口 `?debug=1` 回吐了 `req.headers`，其中含腾讯云临时密钥与 `PUBLISHABLE_KEY`（详见 `api-contract.md` §4.4.3 与 `cloudfunctions/scenes/README.md`），教训固化为**云函数第四条铁律——永不回吐 `req.headers`**。**引擎注**：`api-contract.md` 同步升 v1.3（§2.3 三字段 + 7 条中文文案表、第 4 节三接口转「已实现」、§4.4 拆为 4.4.1 剥前缀 / 4.4.2 方案 K / 4.4.3 四条铁律、§5.1 与 §7 更新）；`cloudfunctions/scenes/README.md` 整份重写（6 接口 / 11 地址实测 / 四铁律）；`skills/cloudbase-postgres-ops/SKILL.md` 第 9 节补方案 K 与"永不回吐 headers"；PRD 未改——Day 18 清单曾要求做写入接口，**经核对与 PRD 第 7 节「本期不做任何写入类接口」正面冲突，用户拍板「甲：守 PRD」**，故当天转为做完余下 3 个读接口，写入接口仍不做 |
-| **v2.4** | **2026-10-03 晚** | **写入接口上线（Day 18 晚补做）：`POST /api/steps/measure` 已实现并公网实测通过**——本期**唯一一个写入接口**，把某一步的实测难度/耗时 `UPDATE` 回 `steps`（只改命中一行、**表行数不变**），服务 AC-08。实测四项：正常写入 **200** / 重复提交 **409 `already_measured`** / 缺必填字段 **400 `missing_field`** + 中文 / 读回该步 `measure_status:"measured"`。**本次仍只补注、不改结构**，补记 **3 处**：① 4.1 接口表新增该行（本期接口口径变为 **6 读 + 1 写**）；② 4.1 网关路由注补记 **POST 同样被 `/api` 那条路由放行**（Day 17–18 只验过 GET，此为当次关闭的未知点）；③ 5.2 现状表与数据流补上**写入方向**（此前两张 mermaid 都只画了"读"，并注明写入的 HTTP 方法是 `PATCH` 而非 `PUT`）。另记**部署前置**：写入比读多需一条 `GRANT UPDATE ON steps TO anon`，不授则写入稳定 500 而**读接口完全不受影响**（4.1 注已写明）。**引擎注**：`PRD.md` 同步升 **v2.2**（§7 第 218 行「本期不做任何写入类接口」**原文划线保留 + 补注**，开出一个写入例外，范围/风险/缓解均写在补注里；**未动 §8 风险表与第 223 行「不做后台」**）；`api-contract.md` 同步升 **v1.4**（新增 §4.5 整节、§2.2 状态码加 `409`、§2.1 方法行加注、§7.1 第 12 项翻转、§7.2 未关闭项调整）；`cloudfunctions/scenes/index.js` 加 POST 分支（纯 ASCII 零 `//`、`package.json` 未动、本地 18 条 + 公网 10 条自测通过）；`cloudfunctions/scenes/README.md` 与 `skills/cloudbase-postgres-ops/SKILL.md` **本次未同步**（仍只写"读"，属待办）。**与 Day 18 白天那笔的关系（值得记）**：Day 18 白天曾按 PRD 第 218 行**拒掉**清单的 POST 要求（用户拍板「甲：守 PRD」），当晚用户拍板「乙 + A甲 + B甲」主动为其开例外并补做——**同一条约定白天守住、晚上被自己放开**，这正是"原文划线保留、补注在后"要留痕的原因 |
+| **v2.5** | **2026-10-04** | **云函数内部分层重构（Day 19）：数据库访问代码从 `index.js` 拆到独立文件 `repository.js`，接口对外行为一字未变**（新建 `cloudfunctions/scenes/repository.js`，导出 `selectRows`/`patchRows` 两个通用函数 + `listScenes`/`findScene`/`listStepsOfScene`/`listResources`/`listInstruments`/`listTasks`/`findStep`/`markStepMeasured` 八个按表命名的函数；`index.js` 从 460 行降到 408 行、全文**零 REST 路径字符串**，只剩 9 处 `repo.*` 调用）。**本次只改结构、不改行为**：接口路径 / 字段名 / 响应形状 / 状态码全部原样，`package.json` 未动、网关路由未动、`api-contract.md` **未改**。验证：① 本地假 key 自测 11 条（见 `README.md` ①），校验链与错误文案逐字正确、读/写两条路径均已接上 repository；② 线上真数据 13 条回归清单（见 `README.md` ②）**待部署后实测**。**代价（如实记录）**：`index.js` 现 `require("./repository")`，**部署须两个文件一起上传**——此前只需贴一个 `index.js`；控制台在线编辑器能否多文件部署**尚未实测**，列为待办。**引擎注**：`TECH_DESIGN.md` 新增 **5.3 节**（分层图 + 职责边界表 + 拆分理由 + 部署提醒）；`cloudfunctions/scenes/README.md` 补「目录结构」「两层职责边界」「repository 导出函数表」「部署注意」四节，并把标题与接口表订正为 **6 读 + 1 写**（清掉 2026-10-03 遗留的"只写 6 个读接口"不准表述）；`PRD.md` 与 `api-contract.md` **本次未改**（重构不动需求与接口口径）。做图按清单「余力加练」项完成 |

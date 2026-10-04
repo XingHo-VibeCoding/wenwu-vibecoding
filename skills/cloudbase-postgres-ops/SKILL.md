@@ -111,7 +111,7 @@ GROUP BY s.no, s.name ORDER BY s.no;
 
 ---
 
-## 9. 云函数零依赖读库：走 PostgreSQL REST API（Day 17 跑通）
+## 9. 云函数零依赖读写库：走 PostgreSQL REST API（Day 17 读 / Day 18 晚写 / Day 19 分层）
 
 **不要装 `pg` 驱动**——它要改 `package.json`，而模板 `package.json` 一改就挂 `InvalidParameter.Dependency`。改走 **PostgREST 风格的 HTTP API**，用 Node 18+ 的全局 `fetch`，零依赖。
 
@@ -168,3 +168,53 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
 
 - 错的报错分层读：`config_error`（环境变量没读到）/ `internal_error`（REST 调用失败：Key 值、GRANT）/ `invalid_path`（路径没匹配，属函数自己的响应，说明路由是通的）/ 非 JSON 的 404（请求没进函数，网关层）。
 - **复核别只信屏幕**：用 python `urllib` 抓 bytes 并**显式 `.decode("utf-8")`**（PowerShell 的 `.Content` 会把中文解成乱码），打印状态码 / Content-Type / 字节数；**字段级比对**则用 `json.loads` 后打印 `sorted(keys)`，与 `db/schema.sql` 的列名做**差集**——只盯着返回内容看，少了字段是看不出来的。
+
+### 写入：PostgREST 的 UPDATE 走 `PATCH`（Day 18 晚跑通）
+
+改一行的写法，**不是 PUT、不是 SQL**：
+
+```js
+const resp = await fetch(REST_BASE + "/steps?scene_id=eq.scene-4&order_no=eq.5", {
+  method: "PATCH",
+  headers: {
+    Authorization: "Bearer " + key,
+    "Content-Type": "application/json",
+    Prefer: "return=representation"      // ← 缺了它拿不到写后的行，只返回空
+  },
+  body: JSON.stringify({ difficulty_level: 1, time_minutes: 1, measure_status: "measured" })
+});
+if (!resp.ok) throw new Error("upstream_status_" + resp.status);
+const rows = await resp.json();          // PATCH 返回**数组**，取 rows[0]
+```
+
+- **`Prefer: return=representation` 必须加**：否则 PostgREST 返回 `204 No Content`，拿不到写后的值，回吐响应就只能靠猜。
+- **PATCH 返回的是数组**（即使只命中一行），要 `rows[0]`。
+- **`WHERE` 用 query 参数表达**：`?col=eq.val` 才是条件；漏了就**全表 UPDATE**（本项目靠 `UNIQUE(scene_id, order_no)` + 前端传两字段兜底，但别依赖）。
+- **HTTP 方法语义映射**：SQL `UPDATE` → HTTP `PATCH`（不是 `PUT`，`PUT` 在 PostgREST 里语义不同）。契约里可以写 SQL 语义，实现落到 HTTP 就是 PATCH。
+
+### ⚠️ 写权限要单独授 `GRANT UPDATE`（Day 18 晚踩过）
+
+`GRANT SELECT` **不管写入**。只授了 SELECT 时，写入接口稳定 `500 write_failed`，而**读接口完全不受影响**——这个不对称极容易误诊成"代码 bug"。
+
+```sql
+GRANT UPDATE ON steps TO anon;   -- 按需、按表授，别用 ALL TABLES
+```
+
+- 授权**按表来**：本期只有 `steps` 需要写，就只授 `steps`。
+- 写入失败与读失败的现象一样（都 500 `internal_error`），排查时**先确认 GRANT**，再看 Key、再看代码。
+
+### 分层：把数据访问单独放一个文件（Day 19 重构）
+
+函数长大后的整理方式——**接口层**（接请求、校验、组装响应）与**数据访问层**（持有 REST 地址、拼查询串、发 fetch）分成两个文件：
+
+```
+cloudfunctions/scenes/
+├── index.js        ← 接口层：路由 + 校验 + 响应，零 REST 路径字符串
+└── repository.js   ← 数据访问层：REST_BASE、selectRows/patchRows、各表函数
+```
+
+- `repository.js` 导出 **2 个通用函数**（`selectRows` / `patchRows`）+ **按表命名的函数**（`listScenes` / `findStep` / `markStepMeasured` …），接口层只调 `repo.xxx`。
+- **业务过滤留在接口层**：如 `q` 关键词过滤、`type` 白名单校验属业务规则，不进数据访问层（"取回数据"与"怎么筛"是两回事）。
+- ⚠️ **部署代价**：`index.js` 一旦 `require("./repository")`，**两个文件必须一起部署**。只贴 `index.js` 的典型报错是函数日志里 `Cannot find module './repository'`，对外表现为 500 `internal_error`。控制台在线编辑器**能否多文件部署未验证**——若只允许单文件，改用 CLI / 压缩包上传。
+- **重构的验收方式**：本地用**假 key** 起服务跑一遍（校验链在"读 key 之后、调 REST 之前"，故假 key 也能测到全部分支；打真 REST 的分支返 500 恰好证明已走到数据访问层），再部署后跑**真数据回归**比对 count。
+
