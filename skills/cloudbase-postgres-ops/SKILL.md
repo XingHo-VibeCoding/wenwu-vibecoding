@@ -1,6 +1,6 @@
 ---
 name: cloudbase-postgres-ops
-description: 在腾讯云开发 CloudBase 的 PostgreSQL 上做建表 / 灌种子 / 跑验证查询 / 让云函数零依赖读库的完整流程与硬规则。当任务涉及「建表、写 SQL、跑 select 验证、改表结构、往库里灌数据、写读接口、云函数连数据库、配 GRANT / anon 角色、HTTP 网关路由」时使用。含控制台入口路径、两段式脚本约定、字段命名避坑、破坏性操作提示的处理、行数核对与关联验证模板、PostgreSQL REST API 接线（Key / GRANT / 网关剥前缀）、以及本项目踩过的环境坑。
+description: 在腾讯云开发 CloudBase 的 PostgreSQL 上做建表 / 灌种子 / 跑验证查询 / 让云函数零依赖读库的完整流程与硬规则。当任务涉及「建表、写 SQL、跑 select 验证、改表结构、往库里灌数据、写读接口、云函数连数据库、配 GRANT / anon 角色、HTTP 网关路由、PATCH/DELETE 写入、错误提示分类、密钥与 .gitignore 自查」时使用。含控制台入口路径、两段式脚本约定、字段命名避坑、破坏性操作提示的处理、行数核对与关联验证模板、PostgreSQL REST API 接线（Key / GRANT / 网关剥前缀）、假 key 本地实测法、以及本项目踩过的环境坑（系统代理拦 localhost、git check-ignore 的 ! 陷阱）。
 agent_created: true
 ---
 
@@ -217,4 +217,36 @@ cloudfunctions/scenes/
 - **业务过滤留在接口层**：如 `q` 关键词过滤、`type` 白名单校验属业务规则，不进数据访问层（"取回数据"与"怎么筛"是两回事）。
 - ⚠️ **部署代价**：`index.js` 一旦 `require("./repository")`，**两个文件必须一起部署**。只贴 `index.js` 的典型报错是函数日志里 `Cannot find module './repository'`，对外表现为 500 `internal_error`。控制台在线编辑器**能否多文件部署未验证**——若只允许单文件，改用 CLI / 压缩包上传。
 - **重构的验收方式**：本地用**假 key** 起服务跑一遍（校验链在"读 key 之后、调 REST 之前"，故假 key 也能测到全部分支；打真 REST 的分支返 500 恰好证明已走到数据访问层），再部署后跑**真数据回归**比对 count。
+
+### DELETE：PostgREST DELETE 不带条件会**删空整表**（Day 22 上线，必须带硬防护）
+
+```js
+// repository.js —— 路径必须含 "?"，否则 PostgREST 会删掉整张表
+async function deleteRows(path, key) {
+  if (path.indexOf("?") === -1) throw new Error("delete_requires_filter");  // ← 硬防护，别删
+  const resp = await fetch(REST_BASE + path, {
+    method: "DELETE",
+    headers: { Authorization: "Bearer " + key, Prefer: "return=representation" }
+  });
+  ...
+}
+```
+- 业务层仍要**先 `SELECT` 查存在再删**，这样"不存在"能给出 `404 task_not_found`（中文），而不是静默成功。
+- **成功形状刻意与列表不同**：`{ ok:true, deleted:{ id, label } }` —— 不要硬套列表的 `{ ok, count, items }`，前端也不该复用列表解析函数。
+- `GRANT DELETE ON tasks TO anon;` **按需、只授一张表**（别 `ALL TABLES`）。
+
+### 本地起服务实测的两个坑（Day 23 踩）
+
+1. **`urllib` / 浏览器会读系统代理 → 打 `127.0.0.1` 也走代理**，报 `502 upstream connect failed ... (os error 10061)`，看起来像"服务没起来"。真相是**服务起好了，请求被代理拦了**。
+   ```python
+   opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # 绕过代理直连
+   ```
+2. **`subprocess` 起 node 时环境变量要显式给全**：只给 `PUBLISHABLE_KEY` 会起不来；**`SystemRoot` 不能省**（PowerShell 里 `Start-Job` 会被安全策略拦，改用 python `subprocess` + `terminate()`）。
+   诊断手法：先 `p.poll()` 看进程是否活着，再把 `stdout`/`stderr` 接出来读——能直接看到 `[scenes] listening on port 9000`。
+
+### 忽略规则验证：`git check-ignore` 的 `!` 陷阱（Day 23 踩）
+
+- 想确认敏感文件被忽略、模板文件可提交，**不能只看返回码**：`git check-ignore -v .env.example` 命中否定规则 `!.env.example` 时**返回码也是 0**，语义却是"**不被忽略**"，只看返回码会判反。
+- 更可靠：`git add --dry-run <file>` —— 输出 `add '...'` = 能提交；输出 `ignored by ... Use -f` = 被忽略。
+- `.gitignore` 里 `.env.*` + `!.env.example` 的组合要比 `.env.*.local` 稳：后者**只挡"以 `.local` 结尾"**，会漏掉 `.env.production` / `.env.staging` 等中间态文件。
 

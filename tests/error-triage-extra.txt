@@ -1,0 +1,4 @@
+[D] 缺 PUBLISHABLE_KEY（期望 500 config_error）
+  D1 GET /scenes               -> 500 config_error | 服务端配置缺失，请联系维护者
+  D2 GET /health(不需要 key)      -> 200 - | -
+  D3 POST /steps/measure       -> 500 config_error | 服务端配置缺失，请联系维护者

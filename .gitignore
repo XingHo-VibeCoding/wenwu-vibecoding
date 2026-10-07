@@ -2,6 +2,10 @@
 .env
 .env.local
 .env.*.local
+# Day 23 补：.env.*.local 只挡"以 .local 结尾"的，会漏掉 .env.production / .env.staging 等
+# 中间态文件。这里补一条精确规则：忽略所有 .env.<后缀>，但用 ! 放行模板文件。
+.env.*
+!.env.example
 *.pem
 *.key
 

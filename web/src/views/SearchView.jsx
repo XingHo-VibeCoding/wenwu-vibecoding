@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import OpItem from "../components/OpItem.jsx";
-import { deleteTask } from "../api/client.js";
+import { deleteTask, kindLabel, errorText } from "../api/client.js";
 
 function norm(s) {
   return String(s == null ? "" : s).toLowerCase();
@@ -41,7 +41,8 @@ export default function SearchView({ scenes, instruments, tasks }) {
         "已删除任务《" + (gone && gone.label ? gone.label : t.label) + "》(id=" + t.id + ")。"
       );
     } catch (e) {
-      setDelMsg("删除失败：" + e.message);
+      // Day 23：统一走"类别 + 中文 message"，不再裸拼 e.message
+      setDelMsg("删除失败（" + kindLabel(e && e.kind) + "）：" + errorText(e));
     } finally {
       setBusyId(null);
     }

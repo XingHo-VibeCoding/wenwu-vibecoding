@@ -1,0 +1,38 @@
+================================================================
+Day 23 板块③ 三类错误实测（本地 :9000，假 key，不落库）
+================================================================
+
+[0] 服务连通性 /health -> 200 wenwu-vibecoding
+
+[A] 输入错（期望 4xx + 中文 message）
+  [PASS] A1 非法路径                                        -> 404 invalid_path | 中文提示=是 | 接口地址不存在
+  [PASS] A2 场景编号格式错                                     -> 400 invalid_param | 中文提示=是 | 请求的路径不存在，或场景编号格式不对（应形如 scene-1）
+  [PASS] A3 type 取值非法                                   -> 400 invalid_param | 中文提示=是 | type 取值不在允许范围内。可选值：dc_power、multimeter、oscilloscope、signal_gen、lcr、curve_tracer
+  [PASS] A4 方法不允许(列表打 POST)                             -> 405 method_not_allowed | 中文提示=是 | 本接口只接受 GET 请求
+  [PASS] A5 缺必填字段                                       -> 400 missing_field | 中文提示=是 | 缺少必填字段：order_no（必填四项：scene_id、order_no、difficulty_level、time_minutes）
+  [PASS] A6 字段取值非法(难度=9)                                -> 400 invalid_param | 中文提示=是 | 字段 difficulty_level 取值不合法：必须是 1 到 5 的整数
+  [PASS] A7 请求体非法 JSON                                  -> 400 invalid_param | 中文提示=是 | 请求体不是合法的 JSON 对象
+  [PASS] A8 PATCH 空载荷                                   -> 400 empty_patch | 中文提示=是 | 没有提供任何可修改字段（可改：difficulty_level、time_minutes、measure_status）
+  [PASS] A9 任务编号非法                                      -> 400 invalid_param | 中文提示=是 | 任务编号必须是正整数
+  [PASS] A10 假key下删不存在任务(先撞鉴权500)                       -> 500 internal_error | 中文提示=是 | 服务端删除数据失败，请稍后重试
+
+[B] 服务端错（期望 5xx + 中文 message）
+  [PASS] B1 假 key 打真库(GRANT/鉴权失败)                       -> 500 internal_error | 中文提示=是 | 服务端删除数据失败，请稍后重试
+     说明：config_error(缺 PUBLISHABLE_KEY) 需重启进程去掉环境变量，
+           已单独实测 -> 500 config_error 中文「服务端配置缺失，请联系维护者」
+
+[E] 真 key 下才走得到的分支（本地受假 key 限制，口径来自契约 + Day 22 实测）
+  · DELETE /tasks/99999999 -> 404 task_not_found 「任务不存在，无法删除（可能已被删除）」
+  · DELETE /tasks/0        -> 404 task_not_found（过正则但查不到；已登记为 §7.2 小瑕疵）
+  · POST /steps/measure 重复提交 -> 409 already_measured「该步骤已经实测过，不能重复提交」
+  · config_error（缺 PUBLISHABLE_KEY）-> 500 config_error「服务端配置缺失，请联系维护者」——已由 error-triage-extra.py 实测
+
+[C] 网络错（本地测不到，靠前端 client.js 转换）
+  前端逻辑：fetch 抛异常 -> toNetworkError() -> ApiError(kind='network')
+  · 断网/DNS 失败 -> '网络请求失败（<路径>），请检查网络后重试'
+  · 超时 (8s)    -> '请求超时（超过 8 秒未响应）：<路径>'
+  → 需浏览器 DevTools Offline 实测（交给你截图）
+
+================================================================
+小结：PASS 11 / FAIL 0
+================================================================

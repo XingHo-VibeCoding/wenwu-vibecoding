@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { VIEWS, useHashRoute } from "./hooks/useHashRoute.js";
 import { useAppData } from "./hooks/useFetch.js";
+import { kindLabel } from "./api/client.js";
 import SearchView from "./views/SearchView.jsx";
 import TransferView from "./views/TransferView.jsx";
 import DeviceView from "./views/DeviceView.jsx";
@@ -9,7 +10,7 @@ const TITLES = { search: "搜索", transfer: "传输指南", device: "设备指�
 
 export default function App() {
   const { view, anchor } = useHashRoute();
-  const { status, data, error } = useAppData();
+  const { status, data, error, errorKind } = useAppData();
 
   useEffect(() => {
     document.title = TITLES[view] + " ｜ 电子设备使用指南";
@@ -56,7 +57,8 @@ export default function App() {
           <>
             {status === "fallback" && (
               <div className="state-box" role="alert">
-                在线数据获取失败（{error}），已切换为内置离线内容。恢复网络后刷新页面即可重试。
+                <b>{kindLabel(errorKind)}：</b>
+                {error}。已切换为内置离线内容，恢复网络后刷新页面即可重试。
               </div>
             )}
             {view === "search" && (

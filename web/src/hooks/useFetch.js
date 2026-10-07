@@ -4,6 +4,7 @@ import {
   fetchResources,
   fetchInstruments,
   fetchTasks,
+  errorText,
 } from "../api/client.js";
 import { MOCK, INSTRUMENT_OPS, TASK_INDEX } from "../data/mock.js";
 
@@ -21,11 +22,13 @@ const EMPTY = { scenes: [], resources: [], instruments: [], tasks: [] };
 
 // 全量拉取四路数据：全部成功 → ready（真数据）；任一失败 → fallback（整体落 mock）
 // status: "loading" | "ready" | "fallback"
+// errorKind: "" | "input" | "network" | "server"（Day 23：来自 ApiError.kind，供界面分类展示）
 export function useAppData() {
   const [state, setState] = useState({
     status: "loading",
     data: EMPTY,
     error: "",
+    errorKind: "",
   });
 
   useEffect(() => {
@@ -37,6 +40,7 @@ export function useAppData() {
             status: "ready",
             data: { scenes, resources, instruments, tasks },
             error: "",
+            errorKind: "",
           });
         }
       })
@@ -45,7 +49,9 @@ export function useAppData() {
           setState({
             status: "fallback",
             data: fallbackData(),
-            error: e && e.message ? e.message : "未知错误",
+            // Day 23：透传中文 message（ApiError 已是中文；其它异常由 errorText 兜底）
+            error: errorText(e),
+            errorKind: e && e.kind ? e.kind : "",
           });
         }
       });
