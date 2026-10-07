@@ -129,7 +129,11 @@ section.view h2 + p { margin-top: 0; }
 
 ul.sv-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 
+ul.sv-list li { display: flex; align-items: stretch; gap: 8px; }
+
 ul.sv-list a {
+  flex: 1 1 auto;
+  min-width: 0;
   display: block;
   font-size: 13px;
   text-decoration: none;
@@ -142,6 +146,32 @@ ul.sv-list a {
 ul.sv-list a:hover { border-color: var(--accent); background: var(--accent-soft); }
 ul.sv-list a:active { background: #d8eaf9; }
 ul.sv-list a b { color: var(--accent); }
+
+.sv-del {
+  flex: 0 0 auto;
+  font-family: inherit;
+  font-size: 13px;
+  color: #b3261e;
+  background: #fff;
+  border: 1px solid #e6b3ae;
+  border-radius: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+.sv-del:hover:not(:disabled) { background: #fdeceb; border-color: #b3261e; }
+.sv-del:active:not(:disabled) { background: #f8d7d4; }
+.sv-del:focus-visible { outline: 2px solid #b3261e; outline-offset: 1px; }
+.sv-del:disabled { color: var(--muted); border-color: var(--line); background: #f5f5f5; cursor: progress; }
+
+.sv-delmsg {
+  font-size: 13px;
+  margin: 0 0 8px;
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--accent-soft);
+}
 
 /* ===== 场景卡片 ===== */
 ul.mv-cards { list-style: none; margin: 0 0 24px; padding: 0; display: grid; gap: 16px; }

@@ -21,7 +21,7 @@ const MSG = {
   method_not_allowed: "\u672c\u63a5\u53e3\u53ea\u63a5\u53d7 GET \u8bf7\u6c42",
   config_error: "\u670d\u52a1\u7aef\u914d\u7f6e\u7f3a\u5931\uff0c\u8bf7\u8054\u7cfb\u7ef4\u62a4\u8005",
   internal_error: "\u670d\u52a1\u7aef\u8bfb\u53d6\u6570\u636e\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5",
-  measure_method: "\u672c\u63a5\u53e3\u53ea\u63a5\u53d7 POST \u8bf7\u6c42",
+  measure_method: "\u672c\u63a5\u53e3\u53ea\u63a5\u53d7 POST \u6216 PATCH \u8bf7\u6c42",
   already_measured: "\u8be5\u6b65\u9aa4\u5df2\u7ecf\u5b9e\u6d4b\u8fc7\uff0c\u4e0d\u80fd\u91cd\u590d\u63d0\u4ea4",
   write_failed: "\u670d\u52a1\u7aef\u5199\u5165\u6570\u636e\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5",
   bad_body_json: "\u8bf7\u6c42\u4f53\u4e0d\u662f\u5408\u6cd5\u7684 JSON \u5bf9\u8c61",
@@ -35,7 +35,14 @@ const MSG = {
   rule_minutes: "\u5fc5\u987b\u662f\u5927\u4e8e\u7b49\u4e8e 0 \u7684\u6574\u6570",
   step_prefix: "\u627e\u4e0d\u5230\u8fd9\u4e2a\u6b65\u9aa4\uff1a",
   step_mid: " \u7684\u7b2c ",
-  step_suffix: " \u6b65\u4e0d\u5b58\u5728"
+  step_suffix: " \u6b65\u4e0d\u5b58\u5728",
+  patch_method: "\u672c\u63a5\u53e3\u53ea\u63a5\u53d7 PATCH \u8bf7\u6c42",
+  empty_patch: "\u6ca1\u6709\u63d0\u4f9b\u4efb\u4f55\u53ef\u4fee\u6539\u5b57\u6bb5\uff08\u53ef\u6539\uff1adifficulty_level\u3001time_minutes\u3001measure_status\uff09",
+  bad_measure_status: "\u53ea\u80fd\u662f measured \u6216 pending",
+  delete_method: "\u672c\u63a5\u53e3\u53ea\u63a5\u53d7 DELETE \u8bf7\u6c42",
+  bad_task_id: "\u4efb\u52a1\u7f16\u53f7\u5fc5\u987b\u662f\u6b63\u6574\u6570",
+  task_not_found: "\u4efb\u52a1\u4e0d\u5b58\u5728\uff0c\u65e0\u6cd5\u5220\u9664\uff08\u53ef\u80fd\u5df2\u88ab\u5220\u9664\uff09",
+  delete_failed: "\u670d\u52a1\u7aef\u5220\u9664\u6570\u636e\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5"
 };
 
 function sendJson(res, statusCode, payload) {
@@ -125,7 +132,15 @@ function resolveRoute(pathname) {
     return { mode: "step_measure" };
   }
 
-  var m = p.match(/^\/scenes\/(.+)$/);
+  var m = p.match(/^\/tasks\/([^\/]+)$/);
+  if (m) {
+    if (/^[0-9]+$/.test(m[1])) {
+      return { mode: "task_delete", id: m[1] };
+    }
+    return { mode: "bad_task_id" };
+  }
+
+  m = p.match(/^\/scenes\/(.+)$/);
   if (m) {
     if (/^scene-[0-9]+$/.test(m[1])) {
       return { mode: "scene_detail", id: m[1] };
@@ -288,6 +303,157 @@ async function handleMeasure(req, res) {
   });
 }
 
+async function handlePatchStep(req, res) {
+  var key = process.env.PUBLISHABLE_KEY;
+  if (!key) {
+    fail(res, 500, "config_error", "config_error");
+    return;
+  }
+
+  var parsedBody = await readJsonBody(req);
+  if (parsedBody.error) {
+    failMsg(res, 400, "invalid_param", MSG.bad_body_json);
+    return;
+  }
+  var payload = parsedBody.value;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    failMsg(res, 400, "invalid_param", MSG.bad_body_json);
+    return;
+  }
+
+  var sceneId = payload.scene_id;
+  if (typeof sceneId !== "string" || !/^scene-[0-9]+$/.test(sceneId)) {
+    measureFieldError(res, "scene_id", MSG.rule_scene_id);
+    return;
+  }
+
+  var orderNo = payload.order_no;
+  if (!Number.isInteger(orderNo) || orderNo < 1) {
+    measureFieldError(res, "order_no", MSG.rule_order_no);
+    return;
+  }
+
+  var fields = {};
+  var hasLevel = Object.prototype.hasOwnProperty.call(payload, "difficulty_level");
+  var hasMinutes = Object.prototype.hasOwnProperty.call(payload, "time_minutes");
+  var hasStatus = Object.prototype.hasOwnProperty.call(payload, "measure_status");
+
+  if (hasLevel) {
+    var lv = payload.difficulty_level;
+    if (!Number.isInteger(lv) || lv < 1 || lv > 5) {
+      measureFieldError(res, "difficulty_level", MSG.rule_level);
+      return;
+    }
+    fields.difficulty_level = lv;
+  }
+
+  if (hasMinutes) {
+    var mn = payload.time_minutes;
+    if (!Number.isInteger(mn) || mn < 0) {
+      measureFieldError(res, "time_minutes", MSG.rule_minutes);
+      return;
+    }
+    fields.time_minutes = mn;
+  }
+
+  if (hasStatus) {
+    var st = payload.measure_status;
+    if (st !== "measured" && st !== "pending") {
+      measureFieldError(res, "measure_status", MSG.bad_measure_status);
+      return;
+    }
+    fields.measure_status = st;
+  }
+
+  if (!hasLevel && !hasMinutes && !hasStatus) {
+    failMsg(res, 400, "empty_patch", MSG.empty_patch);
+    return;
+  }
+
+  var rows;
+  try {
+    rows = await repo.findStep(sceneId, orderNo, key);
+  } catch (e) {
+    failMsg(res, 500, "internal_error", MSG.write_failed);
+    return;
+  }
+
+  if (!rows.length) {
+    failMsg(
+      res,
+      404,
+      "step_not_found",
+      MSG.step_prefix + sceneId + MSG.step_mid + orderNo + MSG.step_suffix
+    );
+    return;
+  }
+
+  var updated;
+  try {
+    updated = await repo.patchStep(sceneId, orderNo, fields, key);
+  } catch (e) {
+    failMsg(res, 500, "internal_error", MSG.write_failed);
+    return;
+  }
+
+  var row = updated && updated.length ? updated[0] : null;
+  if (!row) {
+    failMsg(res, 500, "internal_error", MSG.write_failed);
+    return;
+  }
+
+  ok(res, {
+    item: {
+      scene_id: row.scene_id,
+      order_no: row.order_no,
+      difficulty_level: row.difficulty_level,
+      time_minutes: row.time_minutes,
+      measure_status: row.measure_status
+    }
+  });
+}
+
+async function handleDeleteTask(req, res, id) {
+  var key = process.env.PUBLISHABLE_KEY;
+  if (!key) {
+    fail(res, 500, "config_error", "config_error");
+    return;
+  }
+
+  var rows;
+  try {
+    rows = await repo.selectRows("/tasks?id=eq." + id + "&select=id,label,scene_id", key);
+  } catch (e) {
+    failMsg(res, 500, "internal_error", MSG.delete_failed);
+    return;
+  }
+
+  if (!rows.length) {
+    failMsg(res, 404, "task_not_found", MSG.task_not_found);
+    return;
+  }
+
+  var deleted;
+  try {
+    deleted = await repo.deleteTask(id, key);
+  } catch (e) {
+    failMsg(res, 500, "internal_error", MSG.delete_failed);
+    return;
+  }
+
+  if (!deleted || !deleted.length) {
+    failMsg(res, 404, "task_not_found", MSG.task_not_found);
+    return;
+  }
+
+  ok(res, {
+    deleted: {
+      id: deleted[0].id,
+      label: deleted[0].label
+    }
+  });
+}
+
 const server = http.createServer(async function (req, res) {
   var started = Date.now();
   var parsed = null;
@@ -312,11 +478,27 @@ const server = http.createServer(async function (req, res) {
     return;
   }
   if (route.mode === "step_measure") {
-    if (req.method !== "POST") {
-      failMsg(res, 405, "method_not_allowed", MSG.measure_method);
+    if (req.method === "POST") {
+      await handleMeasure(req, res);
       return;
     }
-    await handleMeasure(req, res);
+    if (req.method === "PATCH") {
+      await handlePatchStep(req, res);
+      return;
+    }
+    failMsg(res, 405, "method_not_allowed", MSG.measure_method);
+    return;
+  }
+  if (route.mode === "bad_task_id") {
+    failMsg(res, 400, "invalid_param", MSG.bad_task_id);
+    return;
+  }
+  if (route.mode === "task_delete") {
+    if (req.method !== "DELETE") {
+      failMsg(res, 405, "method_not_allowed", MSG.delete_method);
+      return;
+    }
+    await handleDeleteTask(req, res, route.id);
     return;
   }
   if (req.method !== "GET") {

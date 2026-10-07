@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import OpItem from "../components/OpItem.jsx";
+import { deleteTask } from "../api/client.js";
 
 function norm(s) {
   return String(s == null ? "" : s).toLowerCase();
@@ -8,19 +9,44 @@ function norm(s) {
 export default function SearchView({ scenes, instruments, tasks }) {
   const [taskQ, setTaskQ] = useState("");
   const [insQ, setInsQ] = useState("");
+  const [delMsg, setDelMsg] = useState("");
+  const [busyId, setBusyId] = useState(null);
+  const [removedIds, setRemovedIds] = useState([]);
 
   // 任务/场景搜索：命中 任务别名 + 所属场景的名称/描述/方法
   const taskHits = useMemo(() => {
     const q = norm(taskQ.trim());
     if (!q) return null;
     return tasks.filter((t) => {
+      if (removedIds.indexOf(t.id) > -1) return false;
       const s = scenes.find((x) => x.id === t.scene_id);
       const hay = norm(
         t.label + " " + (s ? s.no + " " + s.name + " " + s.description + " " + s.method : "")
       );
       return hay.indexOf(q) > -1;
     });
-  }, [taskQ, tasks, scenes]);
+  }, [taskQ, tasks, scenes, removedIds]);
+
+  async function onDelete(t) {
+    const yes = window.confirm(
+      "将删除任务《" + t.label + "》(id=" + t.id + ")，此操作不可撤销。\n\n确定删除吗？"
+    );
+    if (!yes) return;
+    setBusyId(t.id);
+    setDelMsg("");
+    try {
+      const gone = await deleteTask(t.id);
+      setRemovedIds((prev) => prev.concat([t.id]));
+      setDelMsg(
+        "已删除任务《" + (gone && gone.label ? gone.label : t.label) + "》(id=" + t.id + ")。"
+      );
+    } catch (e) {
+      setDelMsg("删除失败：" + e.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
 
   // 仪器操作搜索：命中 操作名 + 关键词表
   const insHits = useMemo(() => {
@@ -51,6 +77,11 @@ export default function SearchView({ scenes, instruments, tasks }) {
         />
       </div>
       <div className="sv-result" aria-live="polite">
+        {delMsg && (
+          <p className="sv-delmsg" role="status">
+            {delMsg}
+          </p>
+        )}
         {taskHits === null ? (
           <p className="sv-hint">输入关键词开始查找，例如「拍板书」。</p>
         ) : taskHits.length === 0 ? (
@@ -60,11 +91,20 @@ export default function SearchView({ scenes, instruments, tasks }) {
             {taskHits.map((t) => {
               const s = scenes.find((x) => x.id === t.scene_id);
               return (
-                <li key={t.label}>
+                <li key={t.id}>
                   <a href={"#/transfer/" + t.scene_id}>
                     <b>{t.label}</b>
                     {s ? " → " + s.no + " " + s.name + "（" + s.method + "）" : ""}
                   </a>
+                  <button
+                    type="button"
+                    className="sv-del"
+                    disabled={busyId === t.id}
+                    onClick={() => onDelete(t)}
+                    title={"删除任务「" + t.label + "」"}
+                  >
+                    {busyId === t.id ? "删除中…" : "删除"}
+                  </button>
                 </li>
               );
             })}

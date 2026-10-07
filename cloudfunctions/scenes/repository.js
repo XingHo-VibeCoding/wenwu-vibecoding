@@ -27,6 +27,23 @@ async function patchRows(pathWithQuery, body, key) {
   return resp.json();
 }
 
+async function deleteRows(pathWithQuery, key) {
+  if (!pathWithQuery || pathWithQuery.indexOf("?") === -1) {
+    throw new Error("delete_requires_filter");
+  }
+  const resp = await fetch(REST_BASE + pathWithQuery, {
+    method: "DELETE",
+    headers: {
+      Authorization: "Bearer " + key,
+      Prefer: "return=representation"
+    }
+  });
+  if (!resp.ok) {
+    throw new Error("upstream_status_" + resp.status);
+  }
+  return resp.json();
+}
+
 function listScenes(key) {
   return selectRows("/scenes?select=*&order=no.asc", key);
 }
@@ -82,9 +99,22 @@ function markStepMeasured(sceneId, orderNo, level, minutes, key) {
   );
 }
 
+function patchStep(sceneId, orderNo, fields, key) {
+  return patchRows(
+    "/steps?scene_id=eq." + sceneId + "&order_no=eq." + orderNo,
+    fields,
+    key
+  );
+}
+
+function deleteTask(id, key) {
+  return deleteRows("/tasks?id=eq." + id, key);
+}
+
 module.exports = {
   selectRows: selectRows,
   patchRows: patchRows,
+  deleteRows: deleteRows,
   listScenes: listScenes,
   findScene: findScene,
   listStepsOfScene: listStepsOfScene,
@@ -92,5 +122,7 @@ module.exports = {
   listInstruments: listInstruments,
   listTasks: listTasks,
   findStep: findStep,
-  markStepMeasured: markStepMeasured
+  markStepMeasured: markStepMeasured,
+  patchStep: patchStep,
+  deleteTask: deleteTask
 };
