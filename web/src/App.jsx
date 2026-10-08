@@ -1,12 +1,13 @@
 import { useEffect } from "react";
-import { VIEWS, useHashRoute } from "./hooks/useHashRoute.js";
+import { NAV_VIEWS, useHashRoute } from "./hooks/useHashRoute.js";
 import { useAppData } from "./hooks/useFetch.js";
 import { kindLabel } from "./api/client.js";
 import SearchView from "./views/SearchView.jsx";
 import TransferView from "./views/TransferView.jsx";
 import DeviceView from "./views/DeviceView.jsx";
+import SceneView from "./views/SceneView.jsx";
 
-const TITLES = { search: "搜索", transfer: "传输指南", device: "设备指南" };
+const TITLES = { search: "搜索", transfer: "传输指南", device: "设备指南", scene: "场景详情" };
 
 export default function App() {
   const { view, anchor } = useHashRoute();
@@ -40,7 +41,7 @@ export default function App() {
           写给用 Android 手机 + Windows 电脑的理工科学生：每件事分几步、每步多难、要多久，动手前先看清楚。
         </p>
         <nav className="views" aria-label="视图切换">
-          {VIEWS.map((v) => (
+          {NAV_VIEWS.map((v) => (
             <a key={v} href={"#/" + v} aria-current={v === view ? "page" : undefined}>
               {TITLES[v]}
             </a>
@@ -72,6 +73,9 @@ export default function App() {
               <TransferView scenes={data.scenes} resources={data.resources} />
             )}
             {view === "device" && <DeviceView instruments={data.instruments} />}
+            {view === "scene" && (
+              <SceneView sceneId={anchor} scenes={data.scenes} />
+            )}
           </>
         )}
       </main>

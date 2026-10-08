@@ -122,6 +122,36 @@ export async function deleteTask(id) {
   return body.deleted;
 }
 
+// 取单个场景详情（含 5 个步骤）——GET /api/scenes/:id（契约 §4.2.2）
+// 成功形状为 { ok: true, item: { ...场景 11 字段, steps: [...] } }
+// 与列表接口不同（列表是 items 数组），故不复用 fetchList
+export async function fetchSceneDetail(id) {
+  const what = "场景详情 " + id;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(API_BASE + "/scenes/" + id, { signal: ctrl.signal });
+  } catch (e) {
+    clearTimeout(timer);
+    throw toNetworkError(e, what);
+  }
+  clearTimeout(timer);
+
+  const body = await readBody(res);
+  if (body === null) {
+    throw new ApiError("network", "响应不是合法 JSON（" + what + "）");
+  }
+  if (!res.ok || body.ok !== true || !body.item) {
+    throw new ApiError(
+      kindOfStatus(res.status),
+      messageFromBody(body, "获取场景详情失败（" + id + "）"),
+      { status: res.status, error: body && body.error }
+    );
+  }
+  return body.item;
+}
+
 // 错误分类展示用小工具：把 ApiError.kind 转成中文标签（前端组件可直接用）
 export function kindLabel(kind) {
   if (kind === "input") return "输入有误";

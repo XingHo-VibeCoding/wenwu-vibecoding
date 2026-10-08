@@ -9,7 +9,8 @@ export default function TransferView({ scenes, resources }) {
       <ul className="mv-cards">
         {scenes.map((s) => (
           <li key={s.id} id={s.id}>
-            <a className="mv-card" href={"#/transfer/" + s.id}>
+            {/* Day 24：卡片从「锚点跳转」改为「进入场景详情页」（#/scene/scene-1） */}
+            <a className="mv-card" href={"#/scene/" + s.id}>
               <span className="mv-card-no">{s.no}</span>
               <h3>{s.name}</h3>
               <p>{s.description}</p>

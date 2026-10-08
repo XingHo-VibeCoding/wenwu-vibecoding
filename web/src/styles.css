@@ -31,6 +31,8 @@
   --ok-fg: #1c7a43;
   --ok-bg: #e6f6ec;
   --star: #946200;
+  /* Day 24：注意事项（坑）文字色，对齐静态站 index.html 的 --warn-ink */
+  --warn-ink: #8a6320;
 }
 
 * { box-sizing: border-box; }
@@ -255,6 +257,122 @@ ol.ins-steps li { margin-bottom: 4px; }
 
 .ins-src { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
 
+/* ===== 场景详情（Day 24 新增，待办 #9） =====
+ * 视觉沿用第 2 周静态站 index.html 的场景板块：
+ *   左侧主题色条 + 角落序号水印 + .scene-meta 前置条件条 + ol.steps 序号圆圈
+ * 本节只做「单场景详情」需要的部分，不自创视觉语言。
+ */
+.scene-detail { position: relative; }
+
+.scene-detail::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 24px;
+  bottom: 24px;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: var(--sc, var(--accent));
+}
+
+.scene--scene-1 { --sc: #185fa5; }
+.scene--scene-2 { --sc: #0f7b6c; }
+.scene--scene-3 { --sc: #946200; }
+.scene--scene-4 { --sc: #6b4fa3; }
+
+.scene-no {
+  position: absolute;
+  top: 10px;
+  right: 22px;
+  font-size: 72px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--sc, var(--accent));
+  opacity: 0.12;
+  pointer-events: none;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.scene-head h2 { font-size: 20px; margin: 0 0 4px; }
+
+.device-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--ok-fg);
+  background: var(--ok-bg);
+  border: 1px solid #b4e0c5;
+  border-radius: 999px;
+}
+
+.scene-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.scene-meta b { font-weight: 600; }
+
+ol.steps { list-style: none; margin: 0; padding-left: 0; counter-reset: step; }
+
+ol.steps > li {
+  counter-increment: step;
+  position: relative;
+  padding: 12px 14px 12px 46px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+}
+
+ol.steps > li::before {
+  content: counter(step);
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  width: 22px;
+  height: 22px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 22px;
+  text-align: center;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 50%;
+}
+
+.step-text { font-size: 14px; margin: 0; }
+
+.step-meta { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+
+.stars { color: var(--star); letter-spacing: 1px; }
+
+.mins { color: var(--accent); font-weight: 600; }
+
+.note { margin: 6px 0 0; font-size: 13px; color: var(--warn-ink); }
+
+.scene-back {
+  display: inline-block;
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: none;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 4px 16px;
+  background: var(--card);
+}
+
+.scene-back:hover { background: var(--accent-soft); }
+.scene-back:active { background: #d8eaf9; }
+
 /* ===== 空态 ===== */
 .state-box {
   border: 1px solid var(--error-fg);
@@ -264,6 +382,22 @@ ol.ins-steps li { margin-bottom: 4px; }
   padding: 16px;
   font-size: 13px;
 }
+
+/* Day 24：中性提示（加载中 / 离线提示），不伪装成错误 */
+.state-box--info {
+  border-color: var(--line);
+  background: var(--bg);
+  color: var(--muted);
+}
+
+/* Day 24：降级提示（接口失败但内容可看）—— 用警示色而非错误红 */
+.state-box--warn {
+  border-color: var(--warn-ink);
+  background: #fdf8ee;
+  color: var(--warn-ink);
+}
+
+.state-box b { font-weight: 600; }
 
 /* ===== 页脚 ===== */
 footer.site {

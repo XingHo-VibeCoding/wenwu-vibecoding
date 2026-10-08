@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react";
 
-export const VIEWS = ["search", "transfer", "device"];
+// Day 24 新增 "scene"：场景详情视图（#/scene/scene-1）
+// 注意：它不在主导航（VIEWS 里的前三项才是导航项），只在卡片点击后进入
+export const VIEWS = ["search", "transfer", "device", "scene"];
+// 主导航显示的视图（scene 是详情页，不进导航栏）
+export const NAV_VIEWS = ["search", "transfer", "device"];
 export const DEFAULT_VIEW = "search";
 
 // hash 解析：形如 #/transfer/scene-1 → { view: "transfer", anchor: "scene-1" }
+//          形如 #/scene/scene-1   → { view: "scene",   anchor: "scene-1" }
 // 与第 2 周静态站（index.html）的路由口径保持一致
 export function parseHash(hash) {
   const parts = String(hash || "")
