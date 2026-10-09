@@ -29,7 +29,7 @@ export default function App() {
     status === "loading"
       ? "正在连接云端数据库…"
       : status === "ready"
-      ? "Day 20 · React · 云数据库数据"
+      ? "云数据库数据 · 实时"
       : "离线内容（接口未响应，已自动兜底）";
 
   return (
@@ -82,7 +82,7 @@ export default function App() {
 
       <footer className="site">
         <p>
-          <b>更新日期：</b>2026-10-04 ｜ <b>版本：</b>React 版（数据来自 CloudBase 云数据库，接口异常自动切换内置离线内容）
+          <b>更新日期：</b>2026-10-09 ｜ <b>版本：</b>React 版（数据来自 CloudBase 云数据库，接口异常自动切换内置离线内容）
         </p>
         <p>
           <b>卡住了找谁：</b>先看对应场景的「方法」列；仍不通就在班级群里问同学，或找实验室老师。

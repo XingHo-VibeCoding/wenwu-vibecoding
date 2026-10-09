@@ -93,7 +93,7 @@ export default function SearchView({ scenes, instruments, tasks }) {
               const s = scenes.find((x) => x.id === t.scene_id);
               return (
                 <li key={t.id}>
-                  <a href={"#/transfer/" + t.scene_id}>
+                  <a href={"#/scene/" + t.scene_id}>
                     <b>{t.label}</b>
                     {s ? " → " + s.no + " " + s.name + "（" + s.method + "）" : ""}
                   </a>
