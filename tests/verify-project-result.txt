@@ -1,0 +1,109 @@
+Day 26 ｜ 发布前检查 Skill（verify-project）首次实跑结果
+执行器：tests/verify-project-run.py（照 skills/verify-project/SKILL.md 的 7 项逐条实现）
+执行时间：2026-10-10
+说明：本节含 4 次运行 —— ① 干净基线 ② 埋雷A ③ 埋雷B ④ 回滚后最终。埋雷均为本地、跑完即回滚。
+
+================================================================
+① 干净基线
+================================================================
+
+[PASS] 1. 公网首页可访问 + 真实数据
+        GET index.html -> 200 , 541 bytes (基线 541)
+        引用资源: ['assets/index-ChUL683b.js', 'assets/index-Dk9WJkSO.css']
+        assets/index-ChUL683b.js -> 200 , 173388 bytes (基线 173388 , 吻合=True)
+          JS 含 app.tcloudbase.com     : True
+          JS 含 /scenes                : True
+          JS 含 /resources             : True
+          JS 含 /instruments           : True
+          JS 含 /tasks                 : True
+        assets/index-Dk9WJkSO.css -> 200 , 7591 bytes (基线 7591 , 吻合=True)
+[PASS] 2. GET /api/health
+        GET /api/health -> 200 {"ok":true,"service":"wenwu-vibecoding"}
+[PASS] 3. 读接口（5 路，逐一对字段）
+        /api/scenes -> 200 count=4 (基线 4) 差集=空
+        /api/scenes/scene-1 -> 200 steps=5 (基线 5) 差集=空
+        /api/resources -> 200 count=6 (基线 6) 差集=空
+        /api/instruments -> 200 count=34 (基线 34) 差集=空
+        /api/tasks -> 200 count=7 (基线 7) 差集=空
+[PASS] 4. 写接口错误分支（方案 A，零变更）
+        跑前 tasks 基线 count/sorted-id = (7, [1, 4, 5, 6, 7, 8, 9])
+        4a POST 缺 time_minutes         -> 400 error=missing_field (期望 400/missing_field) 中文message=True OK
+        4b PATCH 仅 scene_id+order_no   -> 400 error=empty_patch (期望 400/empty_patch) 中文message=True OK
+        4c DELETE /api/tasks/abc       -> 400 error=invalid_param (期望 400/invalid_param) 中文message=True OK
+        4d DELETE /api/tasks/999999    -> 404 error=task_not_found (期望 404/task_not_found) 中文message=True OK
+        跑后复核 count/sorted-id = (7, [1, 4, 5, 6, 7, 8, 9]) (零变更=True)
+[PASS] 5. 无硬编码密钥（源码 + git）
+        源码树扫描文件数 = 19
+        源码树命中 = 无
+        git grep 全历史（严格 JWT 模式）命中 = 无
+[PASS] 6. .gitignore/.env.example
+        check-ignore .env = .gitignore:2:.env	.env
+        check-ignore .env.example = （空）
+        ls-files .env = （空） / .env.example = .env.example
+        .env.example PUBLISHABLE_KEY 值 = '' (应空)
+[PASS] 7. 数据库可连 + 5 表存在（间接）
+        /api/scenes            (scenes) -> 200 非空行数=4
+        /api/scenes/scene-1    (steps) -> 200 非空行数=5
+        /api/resources         (resources) -> 200 非空行数=6
+        /api/instruments       (instruments) -> 200 非空行数=34
+        /api/tasks             (tasks) -> 200 非空行数=7
+
+小结：PASS 7 / FAIL 0
+
+
+================================================================
+② 埋雷 A —— 在源码树临时放一个含"假密钥"的文件
+   动作：新建 web/src/_tmp_leak_probe.js（内含 eyJ... 假 JWT + "Bearer eyJ..."）
+   期望：检查 5 必须 FAIL；其余项不受影响
+   结果：检查 5 FAIL（精确报出文件 + 3 处命中），其余 6 项 PASS
+   回滚：已删除该文件
+================================================================
+
+[FAIL] 5. 无硬编码密钥（源码 + git）
+        源码树扫描文件数 = 20
+        源码树命中 = ['web\src\_tmp_leak_probe.js: eyJhbGciOiJIUzI1NiIsInR5', 'web\src\_tmp_leak_probe.js: eyJyb2xlIjoiYW5vbiJ9', 'web\src\_tmp_leak_probe.js: Bearer eyJ']
+        git grep 全历史（严格 JWT 模式）命中 = 无
+[PASS] 6. .gitignore/.env.example
+[PASS] 7. 数据库可连 + 5 表存在（间接）
+
+小结：PASS 6 / FAIL 1
+
+
+================================================================
+③ 埋雷 B —— 把 .env.example 临时改名
+   动作：.env.example  ->  .env.example.bak
+   期望：检查 6 必须 FAIL；检查 5 应恢复 PASS
+   结果：检查 6 FAIL（报告 .env.example 不存在），检查 5 恢复 PASS，其余 PASS
+   回滚：已改名回 .env.example
+================================================================
+
+[PASS] 5. 无硬编码密钥（源码 + git）
+        源码树扫描文件数 = 19
+        源码树命中 = 无
+        git grep 全历史（严格 JWT 模式）命中 = 无
+[FAIL] 6. .gitignore/.env.example
+        check-ignore .env = .gitignore:2:.env	.env
+        check-ignore .env.example = （空）
+        ls-files .env = （空） / .env.example = .env.example
+        .env.example 不存在 !!!
+[PASS] 7. 数据库可连 + 5 表存在（间接）
+
+小结：PASS 6 / FAIL 1
+
+
+================================================================
+④ 回滚后最终（预期 7/7 PASS）
+================================================================
+
+小结：PASS 7 / FAIL 0
+
+================================================================
+结论
+================================================================
+- 干净基线：PASS 7 / FAIL 0
+- 埋雷 A（假密钥）→ 检查 5 FAIL，精确到文件与命中片段 → 回滚 → 恢复 PASS
+- 埋雷 B（缺 .env.example）→ 检查 6 FAIL → 回滚 → 恢复 PASS
+- 最终：PASS 7 / FAIL 0
+
+判定：本 Skill **能真实反映项目状态**——该 PASS 时 PASS，故意弄坏相应项时**如实 FAIL 且定位到具体文件/项**，不虚报通过。
+另：本次实跑还**顺带抓出一个真问题**——契约 §4.6 把 `DELETE /api/tasks/<非法id>` 的 `error` 误记为 `bad_task_id`（实测为 `invalid_param`），已回改契约 v1.9。

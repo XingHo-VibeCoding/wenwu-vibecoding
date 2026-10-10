@@ -1,12 +1,14 @@
 # 《电子设备使用指南》接口契约（api-contract）
 
-> **v1.8 ｜ Day 23** ｜ 2026-10-08 ｜ Vibe Coding 五步工作流 · 第 4 周第 2 天（**前端错误提示统一为中文，接口口径零变更**）
+> **v1.9 ｜ Day 26** ｜ 2026-10-10 ｜ Vibe Coding 五步工作流 · 第 4 周第 5 天（**订正 §4.6 一处 `error` 标识误记：`bad_task_id` → `invalid_param`；接口代码零变更**）
 >
 > **本文档的依据**：`PRD.md` **v2.4** 第 6 节「数据字段」与第 7 节「暂不做清单」第 218 行补注（Day 18 晚开 `POST` 例外 → **Day 22 再开 `PATCH` / `DELETE` 两个例外** → **Day 23 未再增删任何接口**）+ `TECH_DESIGN.md` **v2.5** 第 3 节「数据模型」/ 第 5.3 节「云函数内部分层」+ **`db/schema.sql` 与 `db/seed.sql`（Day 16 定稿并已在 CloudBase 实际执行）** + `web/src/data/mock.js`（Day 15 程序化提取的真实数据）+ `cloudfunctions/health/README.md`（Day 15 已上线口径）+ **`cloudfunctions/scenes/README.md`（Day 17 新增 / Day 18 更新 / Day 19 补分层与回归，含网关路径行为、方案 K 路由、鉴权与错误口径、目录结构、部署注意）** + **`web/src/api/client.js`（Day 23 起：前端错误分类口径的唯一实现处）**。
 > **本文档的读者**：Day 22 写 PATCH/DELETE 的我、**Day 23 统一错误提示的我**、第二期的我。
 > **一句话总纲**：**契约先定，实现后填**——本期登记的 **6 个读接口已于 Day 18 全部点亮**（全走 GET）；**写入接口三个已全部上线并实测通过**：`POST /api/steps/measure`（Day 18 晚，§4.5）、**`PATCH /api/steps/measure`（Day 22，§4.5.1）**、**`DELETE /api/tasks/:id`（Day 22，§4.6）**，写入例外的理由见 §7.1 第 12 项与 §7.1 第 17 项。
 >
 > ⚠️ **诚实声明**：本文档中标注「**待定**」的条目是**尚未拍板的提案**，不是既成事实；标注「**已实现**」的条目有实测证据；标注「沿用」的条目直接沿用 PRD/TECH_DESIGN 的既有字段口径，未新增发明。
+>
+> 📌 **v1.9 核心变化（Day 26）**：**订正一处 `error` 标识的误记（接口代码零变更）**——§4.6 `DELETE /api/tasks/:id` 的「非法 id」分支，原登记 `error: "bad_task_id"`，**实际为 `error: "invalid_param"`**。根因：代码里 `bad_task_id` 是那句中文 `message`（"任务编号必须是正整数"）的**文案 key**，被误当成了 `error` 值（`failMsg(res, 400, "invalid_param", MSG.bad_task_id)`）。Day 26 实测证据：`DELETE /api/tasks/abc` → `400 {"ok":false,"error":"invalid_param","message":"任务编号必须是正整数"}`。**同步修正**：§2.3 前端分类表、§4.6 失败表与实测证据表**划线保留原值 + 补注**。**判定**：**接口代码一字未改**（函数本就返回 `invalid_param`，是**文档登记错了**，不是实现错了）；其余 6 读 + 3 写的口径全部继续有效。**引擎注**：由 Day 26 发布前检查 Skill（`skills/verify-project`）在核对检查项期望值时实测发现。
 >
 > 📌 **v1.8 核心变化（Day 23）**：**接口口径零变更**——路径、方法、字段名、响应形状、状态码、`error` 标识与 `message` 文案**全部一字未动**（云函数 `MSG` 26 条原封不动）。本次只补记两件事：① **§2.3 新增「前端错误分类口径」小段**——原口径只说"前端不解析 `message`、只认 `error`"，Day 23 起前端**新增按 HTTP 状态码分类**（`ApiError.kind`），这是**前端展示层**的事，**不改接口**，但契约需登记这层对应关系以免日后误读；② 头部依据行补 `web/src/api/client.js` 指针。**判定**：本期**无新增接口、无废弃接口、无形状变更**，v1.7 的全部实测证据继续有效。
 >
@@ -125,7 +127,7 @@
 >
 > | `ApiError.kind` | 判定依据 | 覆盖的接口情形 | 前端标签 |
 > |---|---|---|---|
-> | `"input"` | HTTP 状态码 **4xx** | `invalid_param`(400) / `invalid_path`(404) / `scene_not_found`(404) / `step_not_found`(404) / `task_not_found`(404) / `method_not_allowed`(405) / `already_measured`(409) / `empty_patch`(400) / `missing_field`(400) / `bad_task_id`(400) | 输入有误 |
+> | `"input"` | HTTP 状态码 **4xx** | `invalid_param`(400) / `invalid_path`(404) / `scene_not_found`(404) / `step_not_found`(404) / `task_not_found`(404) / `method_not_allowed`(405) / `already_measured`(409) / `empty_patch`(400) / `missing_field`(400) / ~~`bad_task_id`(400)~~（**Day 26 订正**：非法 task id 实际返回 `invalid_param`，见 §4.6 补注） | 输入有误 |
 > | `"server"` | HTTP 状态码 **5xx** | `config_error`(500) / `internal_error`(500) / `write_failed`(500) / `delete_failed`(500) | 服务端异常 |
 > | `"network"` | **请求根本到不了服务端** | 发不出（断网/DNS/CORS 被拦）、超时（前端 8 秒 `AbortController`）、响应不是合法 JSON | 网络异常 |
 >
@@ -886,12 +888,12 @@ Host: wenwu-331122-d6gyrwmum2a734671-1498887015.ap-shanghai.app.tcloudbase.com
 | # | `error` | 状态码 | 触发场景 | `message` |
 |---|---|---|---|---|
 | 1 | `method_not_allowed` | `405` | 非 DELETE 请求 | 本接口只接受 DELETE 请求 |
-| 2 | **`bad_task_id`** | **`400`** | 路径 id 不是正整数（如 `abc` / `-1` / `1.5`） | 任务编号必须是正整数 |
+| 2 | ~~**`bad_task_id`**~~ **`invalid_param`** | **`400`** | 路径 id 不是正整数（如 `abc` / `-1` / `1.5`） | 任务编号必须是正整数 |
 | 3 | **`task_not_found`** | **`404`** | 该 id 在 `tasks` 中不存在（含"删了 0 行"） | 找不到这个任务：id=`<id>` 不存在 |
 | 4 | `config_error` | `500` | 云函数没读到环境变量 | 服务端配置缺失，请联系维护者 |
 | 5 | `internal_error` | `500` | 删库失败 | 服务端删除数据失败，请稍后重试 |
 
-> `bad_task_id` / `task_not_found` 两条为本次新增。
+> ~~`bad_task_id`~~ / `task_not_found` 两条为 v1.7 本次新增。**Day 26 订正**：`task_not_found`(404) 是实际新增的 `error` 标识；~~`bad_task_id`~~ 原被登记为 `error`，实则它是中文 `message` 的**文案 key**，`error` 实际返回 **`invalid_param`**（见下方「口径更正」补注）。
 
 **Day 22 实测证据（2026-10-07）**
 
@@ -900,10 +902,12 @@ Host: wenwu-331122-d6gyrwmum2a734671-1498887015.ap-shanghai.app.tcloudbase.com
 | `DELETE /api/tasks/2` | **200** `{"ok":true,"deleted":{"id":2,"label":"拍板书"}}` |
 | `GET /api/tasks` 复核 | `count` **8 → 7**，ids `[1,3,4,5,6,7,8]`，**id=2 消失且只少了它** |
 | 再删同一条（`/tasks/2`） | **404** `task_not_found` |
-| 非法 id `abc` / `-1` / `1.5` | **400** `bad_task_id` |
+| 非法 id `abc` / `-1` / `1.5` | **400** ~~`bad_task_id`~~ **`invalid_param`**（Day 26 复测订正，见下方补注） |
 | `DELETE /api/tasks`（不带 id） | **405**（被 `/tasks` 只读路由挡住，**不是**删除接口自身的防护） |
 | 前端搜索页点「删除」（`id=3` 交作业） | 弹 `confirm` → 确认 → 列表移除 + 提示「已删除任务《交作业》(id=3)。」→ 强刷重搜**不再返回** |
 
+> **⚠️ 口径更正（Day 26，2026-10-10，实测）**：本节失败表第 2 行的 `error` 标识**原登记 `bad_task_id` 有误，实际为 `invalid_param`**。依据：代码 `cloudfunctions/scenes/index.js` 的 `bad_task_id` 分支写作 `failMsg(res, 400, "invalid_param", MSG.bad_task_id)`——**`bad_task_id` 是那句中文 `message` 的文案 key，不是 `error` 值**。线上实测：`DELETE /api/tasks/abc` → `400 {"ok":false,"error":"invalid_param","message":"任务编号必须是正整数"}`。**本表以实测为准**；`task_not_found`(404) 登记正确、不受影响。已同步 `skills/verify-project/SKILL.md` 检查 4c（检查项期望值按实测写）。
+>
 > ⚠️ **代码层硬防护（务必保留）**：数据访问层 `deleteRows(pathWithQuery, key)` **强制要求路径含 `?`**（即有过滤条件），否则 `throw new Error("delete_requires_filter")`。原因：**PostgREST 的 `DELETE` 不带过滤条件会删空整表**（`DELETE /tasks` = 清空 `tasks`）。本接口的路径硬编码为 `"/tasks?id=eq." + id`，天然带 `?`；这条断言防的是"日后有人写错路径"。
 >
 > **运行侧前置（同 §4.5 的 `GRANT UPDATE`）**：`GRANT DELETE ON tasks TO anon;`。**只授 `tasks` 一张表**——`steps` / `scenes` / `resources` / `instruments` 的 `DELETE` **未授权**，即使代码误写也删不动（多一层保险）。缺这条授权 → 稳定 `500 internal_error`，而**读接口完全不受影响**（同 §4.5 那个坑）。
@@ -1048,5 +1052,6 @@ Day 17 改造前端时按此表改，避免漏字段。**右侧是数据库真�
 | **v1.6** | **2026-10-04** | **Day 20 CORS：结论反转（★本次仍未改任何接口口径）**。~~方案甲＝函数自带 CORS 响应头~~（本地假 key 三态可过）**部署后浏览器实测被拒**——python urllib 直连网关多态实测＋浏览器报错复现，查明：**平台网关已内置 CORS**——① 对已登记域（静态托管 / webapps）自动回显 `Access-Control-Allow-Origin`（值＝请求 Origin；名单外 `example.com` 不回显）；② `OPTIONS` 预检由平台接管（`204`，ACAM/ACAH 按请求回显，**POST JSON 预检可过**）；③ 函数静态域头与平台回显叠加＝**双值必拒**（`multiple values ... only one is allowed`）。**终案：函数零 CORS 代码，全靠平台内置**——`index.js` 撤除 `CORS_ORIGIN` / `corsHeaders()` / `sendJson` 合并 / `OPTIONS` 短路四处，回到 Day 19 版（11162 字节 / `node --check` exit 0 / 非 ASCII 0）。§1.2 CORS 行、§7.2 第 16 项按反转口径改写；**§7.2 第 14 项关闭**（用户控制台部署两文件成功）保留。**引擎注**：① 发现**域名陷阱**——控制台静态托管页「访问应用」跳 `webapps.tcloudbase...` 预览域，**不是** §1.1 正式地址，验证一律地址栏直开正式地址；② 平台回显无官方文档背书，§7.2 第 16 项列**待观察**＋退路预案；③ 踩坑——同一文件两处 Edit 并行执行，后者把前者静默覆盖（工具仍报成功），靠 git diff 行数对不上才抓住，此后同文件编辑一律串行 |
 | **v1.7** | **2026-10-07** | **Day 22 PATCH / DELETE 上线，四类操作闭环（★本次新增两个写入接口，接口口径有实质变化）**：① **新增 §4.5.1 `PATCH /api/steps/measure`**（部分更新，"给谁改谁"；与 POST 同路径按方法分流；新增错误标识 `empty_patch`；**允许改已 `measured` 的行**，解开 §4.5 的两个死结）；② **新增 §4.6 `DELETE /api/tasks/:id`**（先查后删；成功形状 `{ok,deleted:{id,label}}`，**与列表接口不同**；新增 `bad_task_id` / `task_not_found`；代码层 `deleteRows` 强制路径含 `?` 防"删空整表"）；③ **§2.1 方法第二次放开例外**（POST → 加 PATCH / DELETE，仍未开放的：`PUT`、批量、内容字段编辑、四表删除）；④ **§2.4 鉴权风险再重估**（写入接口 1 → 3 个，"接口只读"论据彻底作废；**明示前端二次确认不是安全边界**）；⑤ **§4.4 库侧授权补 `GRANT DELETE ON tasks`**（仅 `tasks` 一张表）；⑥ **§4.4.2 补记方案 K 对 PATCH / DELETE 同样放行**（探针实测，收到本函数 405 而非网关 `INVALID_PATH`）；⑦ **§5.1 现状更新为"三层全通、四类操作闭环"**、§5.2 mermaid 与步骤补写入侧；⑧ **§7.1 新增第 17 项**（PATCH/DELETE 翻案），**§7.2 关闭第 2/5/6/7/8/11/15 项**（CORS、mock 兜底、文案统一、枚举值、前端接接口、写入接口待做、线上回归），**新增第 17–18 项**（未开放 INSERT / 未开放 scenes·steps 删除）；⑨ §7.2 第 1 项更新 AC-08 进度为 **2/20**。**引擎注**：`PRD.md` 同步升 **v2.3**（第 7 节第二次补注）；本次由用户拍板四项（两个例外都开 + 改 PRD 补注 / PATCH 落 `steps` 实测值 / DELETE 落 `tasks` / 前端二次确认当天一起做）；**载入一次真实执行事故**——探针带有效字段致 `scene-1` 第 2 步难度被误改（已改回并全量复核），教训"线上探测必须按真实写入对待"已写入 §4.5.1 |
 | **v1.8** | **2026-10-08** | **Day 23 前端错误分类登记（★本次未改任何接口口径）**：**接口侧一字未动**——路径 / 方法 / 字段名 / 响应形状 / 状态码 / `error` 标识 / `message` 文案**全部沿用 v1.7**（云函数 `MSG` 26 条原封不动，**代码零改动**）。本次只补记**前端消费侧**新增的一层分类：① **§2.3 新增「前端错误分类口径（`ApiError`）」小段**——登记 `kind = input(4xx) / server(5xx) / network(到不了服务端)` 三类判定依据、覆盖的接口情形、前端标签（输入有误 / 服务端异常 / 网络异常），并说明**分类只按状态码 `>=500` 一刀切、不解析 `error` 字符串**（后端加错误码前端无需跟改）；② 明确**文案双来源**——`input`/`server` **透传后端 `message`**（用户拍板不吞成通用话术）、`network` 由前端自造中文（此时无响应体可读）；③ 头部**依据行补 `web/src/api/client.js` 指针**、读者行补 Day 23。**判定**：本期**无新增接口、无废弃接口、无形状变更**，v1.7 全部实测证据继续有效。**引擎注**：`PRD.md` 同步升 **v2.4**（第 7 节第三次补注 + 第 8 节新增风险第 10–11 条）；促成原因是 Day 23 清单要求"三类错误统一中文提示"；实现处唯一 = `web/src/api/client.js`，**本文档登记的是"前端怎么看接口错误"，不是接口本身**；实测证据见 `tests/error-triage-result.txt`（本地假 key 打全量用例 **PASS 11 / FAIL 0**） |
+| **v1.9** | **2026-10-10** | **Day 26 发布前检查 Skill 发现并订正一处 `error` 标识误记（★接口代码零变更）**：§4.6 `DELETE /api/tasks/:id` 的「非法 id」分支，`error` **原登记 `bad_task_id`，实际为 `invalid_param`**（代码 `failMsg(res, 400, "invalid_param", MSG.bad_task_id)`——`bad_task_id` 只是中文 `message` 的文案 key）。本次改动：① **§2.3 前端分类表**、**§4.6 失败表**、**§4.6 实测证据表** 三处**划线保留原值 + 补注**；② **§4.6 新增「口径更正」补注块**；③ 本修订行。**判定**：**接口代码一字未改**（函数本就返回 `invalid_param`，是文档登记错了）；v1.7 / v1.8 其余口径与实测证据继续有效。**引擎注**：由 Day 26 新增的发布前检查 Skill（`skills/verify-project/SKILL.md`）在核对检查项期望值时**实测发现**——"检查 Skill 能抓真问题"的一个实例；`PRD.md` 本次未改（不涉及需求） |
 
 
