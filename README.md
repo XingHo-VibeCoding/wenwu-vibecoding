@@ -66,7 +66,7 @@ npm run build    # 构建产物到 web/dist/，上传 CloudBase 静态托管
 | 2 | `GET /api/health` | 200，且响应体**恰好** `{"ok":true,"service":"wenwu-vibecoding"}`（字段级比对） |
 | 3 | 读接口（5 路 GET） | 全部 200，且**字段集逐一吻合契约**（缺字段即 FAIL，肉眼看不出来必须程序比对） |
 | 4 | 写接口（**只跑错误分支**） | 4a `missing_field` / 4b `empty_patch` / 4c `invalid_param` / 4d `task_not_found`，且跑前跑后 `tasks` 数一致（**零变更**） |
-| 5 | 无硬编码密钥 | 源码树 + **git 全历史**，严格 JWT 模式 `eyJ[A-Za-z0-9_-]{10,}` **0 命中** |
+| 5 | 无硬编码密钥 | 源码树（`web/src` + `cloudfunctions` + `index.html`）+ **git 已跟踪文件**，严格 JWT 模式 `eyJ[A-Za-z0-9_-]{10,}` **0 命中**（⚠️ 不含 git 历史提交；证据文档里的假串须先脱敏，否则自污染误报） |
 | 6 | `.gitignore` / `.env.example` | `.env` 被忽略且未跟踪 ｜ `.env.example` 已跟踪且**无真值** |
 | 7 | 数据库可连 + 5 表存在 | 5 张表各有 200 且非空数据（**经接口间接证明**，AI 不持有库凭据） |
 
@@ -82,7 +82,8 @@ npm run build    # 构建产物到 web/dist/，上传 CloudBase 静态托管
 ├── research.md         # 调研文档（Day 3）
 ├── PRD.md              # 需求文档（Day 4，现 v2.4）
 ├── TECH_DESIGN.md      # 技术设计（Day 5，现 v2.5）
-├── tests/              # 测试清单与实跑存档（error-triage / verify-project / day25-bugfix 等）
+├── tests/              # 测试清单与实跑存档（error-triage / verify-project / day25-bugfix）+ 线上版本校验器
+├── docs/               # 发布与运维文档：RELEASE-v1.0.md（发布清单）/ ROLLBACK.md（回滚手册）/ CHANGELOG.md
 └── skills/             # 项目内 Skill：设计基线 / CloudBase 运维 / 发布前检查
 ```
 
@@ -100,5 +101,7 @@ npm run build    # 构建产物到 web/dist/，上传 CloudBase 静态托管
 - GitHub Pages（静态站版，Day 7 上线）：`https://xingho-vibecoding.github.io/wenwu-vibecoding/`
 - CloudBase 静态托管（云开发版，Day 15 上线）：`https://wenwu-331122-d6gyrwmum2a734671-1498877015.tcloudbaseapp.com/wenwu-vibecoding/`
 - 接口基地址（云函数网关）：`https://wenwu-331122-d6gyrwmum2a734671-1498887015.ap-shanghai.app.tcloudbase.com`（前缀 `/api`，现有 6 个读接口 + 3 个写接口）
+- **当前版本：`v1.0`**（git tag `v1.0`，冻结提交 `d3ad504`，2026-10-11 发布验收）—— 发布清单 `docs/RELEASE-v1.0.md` ｜ 回滚手册 `docs/ROLLBACK.md` ｜ 变更历史 `docs/CHANGELOG.md`
+- 校验"线上现在是哪个版本"：`python tests/check-live-version.py --expect v1.0`
 
 > ⚠️ 云开发版状态（2026-10-10 更新）：前端已上线，**数据来自 PostgreSQL 真实数据**——6 个读接口 + 3 个写接口全部在 `scenes` 云函数内（`health/` 仅提供 `/api/health`）；已含场景详情视图。上线前跑一遍「发布前检查」（见上）。

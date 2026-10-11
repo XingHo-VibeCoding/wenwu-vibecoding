@@ -2,6 +2,11 @@ Day 26 ｜ 发布前检查 Skill（verify-project）首次实跑结果
 执行器：tests/verify-project-run.py（照 skills/verify-project/SKILL.md 的 7 项逐条实现）
 执行时间：2026-10-10
 说明：本节含 4 次运行 —— ① 干净基线 ② 埋雷A ③ 埋雷B ④ 回滚后最终。埋雷均为本地、跑完即回滚。
+补注（2026-10-11 Day 27 订正）：
+  ① 埋雷 A 的命中片段已**脱敏**（原文是假的 JWT 串，形如 eyJ…）。原因：本文件随 d3ad504 入库后，
+     被检查 5 的 `git grep` 扫成"命中"，造成**证据文档自污染**的误报（Day 27 实测）。
+     —— 教训：**证据/文档里不要留任何形似真实凭据的串**，扫描器的扫描范围会包含它们。
+  ② 表述订正：`git grep` **只扫已跟踪文件，不含历史提交**，原文"全历史"是错的。
 
 ================================================================
 ① 干净基线
@@ -35,7 +40,7 @@ Day 26 ｜ 发布前检查 Skill（verify-project）首次实跑结果
 [PASS] 5. 无硬编码密钥（源码 + git）
         源码树扫描文件数 = 19
         源码树命中 = 无
-        git grep 全历史（严格 JWT 模式）命中 = 无
+        git grep 已跟踪文件（严格 JWT 模式）命中 = 无
 [PASS] 6. .gitignore/.env.example
         check-ignore .env = .gitignore:2:.env	.env
         check-ignore .env.example = （空）
@@ -61,8 +66,8 @@ Day 26 ｜ 发布前检查 Skill（verify-project）首次实跑结果
 
 [FAIL] 5. 无硬编码密钥（源码 + git）
         源码树扫描文件数 = 20
-        源码树命中 = ['web\src\_tmp_leak_probe.js: eyJhbGciOiJIUzI1NiIsInR5', 'web\src\_tmp_leak_probe.js: eyJyb2xlIjoiYW5vbiJ9', 'web\src\_tmp_leak_probe.js: Bearer eyJ']
-        git grep 全历史（严格 JWT 模式）命中 = 无
+        源码树命中 = 3 处，均在 web\src\_tmp_leak_probe.js（原文为 Day26 埋雷的假 JWT，已脱敏：eyJ…（假串·已脱敏）×3）
+        git grep 已跟踪文件（严格 JWT 模式）命中 = 无
 [PASS] 6. .gitignore/.env.example
 [PASS] 7. 数据库可连 + 5 表存在（间接）
 
@@ -80,7 +85,7 @@ Day 26 ｜ 发布前检查 Skill（verify-project）首次实跑结果
 [PASS] 5. 无硬编码密钥（源码 + git）
         源码树扫描文件数 = 19
         源码树命中 = 无
-        git grep 全历史（严格 JWT 模式）命中 = 无
+        git grep 已跟踪文件（严格 JWT 模式）命中 = 无
 [FAIL] 6. .gitignore/.env.example
         check-ignore .env = .gitignore:2:.env	.env
         check-ignore .env.example = （空）

@@ -146,7 +146,7 @@ except Exception as e:
     gh = ["git err: " + str(e)]
 ev.append("源码树扫描文件数 = %d" % len(targets))
 ev.append("源码树命中 = %s" % (hits if hits else "无"))
-ev.append("git grep 全历史（严格 JWT 模式）命中 = %s" % (gh if gh else "无"))
+ev.append("git grep 已跟踪文件（严格 JWT 模式，不含历史提交）命中 = %s" % (gh if gh else "无"))
 ok = (not hits) and (not gh)
 add(ok, "5. 无硬编码密钥（源码 + git）", ev)
 
