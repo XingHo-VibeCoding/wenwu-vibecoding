@@ -214,6 +214,122 @@ ul.res-list a:active { color: var(--accent-deep); }
 
 .res-use { color: var(--muted); margin-left: 8px; }
 
+/* ===== 面板图与按键说明（Day 28 新增，板块 4） =====
+ * 结构：.panel-block > h3 + ul.panel-list > li.panel-card >（.panel-head 按钮）+（.panel-body 展开体）
+ * 视觉沿用本页既有语言：圆角 8 / 边框 var(--line) / 卡片底 var(--card) / 间距取 8 的倍数
+ */
+.panel-block { margin-bottom: 16px; }
+
+.panel-block-head {
+  font-size: 15px;
+  margin: 0 0 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+ul.panel-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+
+li.panel-card { border: 1px solid var(--line); border-radius: 8px; }
+
+/* 卡片头 = 展开/收起按钮（整行可点，故用 button 而非 div，键盘可达） */
+.panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--card);
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.panel-head:hover { background: var(--accent-soft); }
+.panel-head:active { background: #d8eaf9; }
+.panel-head[aria-expanded="true"] {
+  border-bottom: 1px solid var(--line);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.panel-title { font-weight: 600; }
+.panel-meta { font-size: 13px; color: var(--muted); }
+.panel-toggle { margin-left: auto; font-size: 13px; color: var(--accent); }
+
+.panel-body { padding: 16px; }
+
+figure.panel-fig { margin: 0 0 16px; }
+
+a.panel-zoom { display: block; }
+
+.panel-fig img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+a.panel-zoom:hover img { border-color: var(--accent); }
+
+.panel-imgfail {
+  font-size: 13px;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 0;
+}
+
+.panel-cap { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+
+table.panel-keys { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+.panel-keys th,
+.panel-keys td {
+  border: 1px solid var(--line);
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.panel-keys thead th { background: var(--accent-soft); font-weight: 600; }
+
+.panel-key-no { width: 48px; text-align: right; color: var(--muted); }
+.panel-key-name { width: 30%; font-weight: 600; }
+
+.panel-note { font-size: 13px; color: var(--warn-ink); margin: 8px 0 0; }
+.panel-empty { font-size: 13px; color: var(--muted); margin: 0; }
+
+/* 窄屏：按键表由三列改为堆叠（列宽不够时横向挤压会不可读） */
+@media (max-width: 640px) {
+  table.panel-keys,
+  .panel-keys tbody,
+  .panel-keys tr,
+  .panel-keys td { display: block; }
+
+  .panel-keys thead { display: none; }
+
+  .panel-keys tr {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px;
+    margin-bottom: 8px;
+  }
+
+  .panel-keys td { border: 0; padding: 0; width: auto; }
+
+  .panel-key-no { color: var(--star); font-weight: 700; }
+  .panel-key-name { margin: 4px 0; }
+}
+
 /* ===== 仪器筛选按钮 ===== */
 .ins-filter { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
 

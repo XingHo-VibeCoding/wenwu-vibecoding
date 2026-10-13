@@ -76,6 +76,17 @@ function listTasks(key) {
   return selectRows("/tasks?select=id,label,scene_id&order=id.asc", key);
 }
 
+function listPanels(queryString, key) {
+  return selectRows("/panels?" + queryString, key);
+}
+
+function listPanelKeys(key) {
+  return selectRows(
+    "/panel_keys?select=device_type,order_no,key_name,function_desc,source&order=device_type.asc,order_no.asc",
+    key
+  );
+}
+
 function findStep(sceneId, orderNo, key) {
   return selectRows(
     "/steps?scene_id=eq." +
@@ -121,6 +132,8 @@ module.exports = {
   listResources: listResources,
   listInstruments: listInstruments,
   listTasks: listTasks,
+  listPanels: listPanels,
+  listPanelKeys: listPanelKeys,
   findStep: findStep,
   markStepMeasured: markStepMeasured,
   patchStep: patchStep,

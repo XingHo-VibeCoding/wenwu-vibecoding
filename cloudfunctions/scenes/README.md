@@ -1,6 +1,6 @@
-# cloudfunctions/scenes —— 全部 6 个读接口 + 1 个写接口（Day 17 建立 / Day 18 扩容 / Day 19 分层 / Day 20 CORS）
+# cloudfunctions/scenes —— 全部 7 个读接口 + 3 个写接口（Day 17 建立 / Day 18 扩容 / Day 19 分层 / Day 20 CORS / Day 22 增 PATCH·DELETE / Day 28 增 panels）
 
-> 函数名 `scenes` 是 Day 17 起的名字，Day 18 起它实际管着 **4 类资源、7 个接口（6 读 + 1 写）**。
+> 函数名 `scenes` 是 Day 17 起的名字，如今它实际管着 **5 类资源、10 个接口（7 读 + 3 写）**。
 > **名字有误导，但刻意不改**（不为改名去动已上线的东西，见文末待办）。
 
 ## 目录结构（Day 19 分层重构）
@@ -19,7 +19,7 @@ cloudfunctions/scenes/
 | **接口层** | `index.js` | 接请求 → 解析路径/参数 → 校验 → 调 repository → 组装响应 → `res.end` | 不出现任何 REST 路径、表名、SQL 语义 |
 | **数据访问层** | `repository.js` | 持有 `REST_BASE`、拼 PostgREST 查询串、发起 `fetch`、把结果原样返回 | 不判断业务规则、不碰 `req`/`res`、不写响应 |
 
-`index.js` 通过 `const repo = require("./repository")` 拿到 10 个函数（2 个通用 + 8 个按表命名），全文**零 REST 路径字符串**。
+`index.js` 通过 `const repo = require("./repository")` 拿到 15 个函数（3 个通用 + 12 个按表/业务命名），全文**零 REST 路径字符串**。
 
 ### repository.js 导出的函数
 
@@ -35,6 +35,11 @@ cloudfunctions/scenes/
 | `listTasks(key)` | `GET /tasks?...&order=id.asc` | `GET /api/tasks` |
 | `findStep(sceneId, orderNo, key)` | `GET /steps?scene_id=eq.…&order_no=eq.…` | `POST /api/steps/measure` 查步 |
 | `markStepMeasured(sceneId, orderNo, level, minutes, key)` | `PATCH /steps?...`（写三字段） | `POST /api/steps/measure` 写库 |
+| `patchStep(sceneId, orderNo, fields, key)` | `PATCH /steps?...`（部分更新，给谁改谁） | `PATCH /api/steps/measure` |
+| `deleteRows(pathWithQuery, key)` | 通用 DELETE（底层，**强制路径含 `?`**，防删空整表） | 被 `deleteTask` 复用 |
+| `deleteTask(id, key)` | `DELETE /tasks?id=eq.{id}` | `DELETE /api/tasks/:id` |
+| `listPanels(queryString, key)` | `GET /panels?{qs}` | `GET /api/panels`（**Day 28 新增**） |
+| `listPanelKeys(key)` | `GET /panel_keys?...&order=device_type.asc,order_no.asc` | `GET /api/panels`（**Day 28 新增**） |
 
 > ℹ️ `listInstruments` 只负责「取回候选行」；`type` 白名单校验留在接口层，`q` 关键词过滤也在接口层（返回后由 `matchKeyword` 用 JS 过滤）。这是有意的：**过滤属于业务规则，不属于数据访问**。
 
@@ -49,7 +54,10 @@ cloudfunctions/scenes/
 | `GET /api/resources` | Day 18 | 无 |
 | `GET /api/instruments` | Day 18 | `type`（6 个枚举白名单）、`q`（关键词，对 `title`+`keywords` 不区分大小写包含匹配） |
 | `GET /api/tasks` | Day 18 | 无 |
+| `GET /api/panels` | **Day 28** | `type`（6 个枚举白名单，同 `instruments`）；**无 `q`**——按键名搜索由前端本地过滤（两版行为一致） |
 | `POST /api/steps/measure` | Day 18 晚 | 无（请求体四字段：`scene_id`/`order_no`/`difficulty_level`/`time_minutes`） |
+| `PATCH /api/steps/measure` | Day 22 | 无（请求体：`scene_id`/`order_no` + 三个可选字段至少给一个） |
+| `DELETE /api/tasks/:id` | Day 22 | 路径参数 `:id`（正整数） |
 | `GET /api/health`（兜底分支） | Day 18 | 无——`/api/health` 另有独立函数，本分支是防被短前缀抢走的兜底 |
 
 ## 部署状态（2026-10-03，Day 18 收工）
@@ -57,6 +65,12 @@ cloudfunctions/scenes/
 > ~~⚠️ **Day 20 CORS 结论反转，撤头版待部署**：函数侧 CORS 代码已**全部撤除**（实测平台网关对名单内 Origin 自动回显 ACAO，函数再加必成双值被浏览器拒，见下方「CORS」节）；`index.js` 现与 Day 19 提交版逐字一致，**线上跑的仍是"加头版"**——重新部署后才恢复干净。下表为 Day 18 版实测记录，重部署后按「回归验证 ②」再走一遍。~~
 >
 > ✅ **Day 21（2026-10-06）补注：上面这条已过时，每一句都不再成立——撤头版早已部署，CORS 收口完成。** 时间线：Day 20 晚（2026-10-04）用户已重新部署撤头版 `index.js`，并在**正式静态地址**实测 `CORS OK true 4 4 [5,5,5,5]`（4 场景 × 5 步）、红报错消失；Day 21 复测 6 个读接口全部 `200`，即线上跑的**就是撤头版**。下表 Day 18 实测记录仍然有效（接口口径未变），「回归验证 ②」的线上部分已于 Day 21 实测 **12/13 条**（仅第 13 条 409 待实测），完整结果见 `tests/week3-acceptance.md`。
+
+> 🆕 **Day 28（2026-10-12）补注：新接口 `GET /api/panels` 已写好，但【尚未部署】。** 本次改动两个文件 —— `index.js`（+`/panels` 路由与处理分支）与 `repository.js`（+`listPanels` / `listPanelKeys`）。本地假 key 自测 **PASS 8 / FAIL 0**（含 3 条老接口回归）。
+>
+> ⚠️ **部署顺序硬约束**：**先执行 `db/migration-day28.sql`（建 2 张表 + `GRANT SELECT`）→ 再 `db/seed-day28.sql`（灌 6 + 146 行）→ 最后部署函数**。表还没建就部署函数 → `/api/panels` 稳定 `500`（老接口不受影响，极易误诊）。
+> ⚠️ **部署方式照旧**：控制台在线编辑器**一次传两个文件**（`index.js` + `repository.js`），`package.json` 一字不动。**只贴 `index.js` 会报 `Cannot find module './repository'`**。
+> ⚠️ **部署后必须实测**：`/api/panels` → `count:6`；`?type=oscilloscope` → `count:1` 且该台 `keys` **38** 条（真库 `count` 断言，本地假 key 看不到）。**验证前不得记成已通过。**
 
 **✅ 已上线并实测**（用户控制台截图 + AI 远程 python urllib 独立复核，11 个地址）：
 
@@ -82,7 +96,7 @@ cloudfunctions/scenes/
 
 ```
 浏览器 → HTTP 网关（只配 /api 一条路由，剥掉 /api 后转发）
-       → index.js 接口层：分发 /scenes、/resources、/instruments、/tasks、/steps/measure、/health
+       → index.js 接口层：分发 /scenes、/resources、/instruments、/panels、/tasks、/steps/measure、/health
        → repository.js 数据访问层：拼查询串并用 Node 20 全局 fetch 调 CloudBase PostgreSQL REST API
        → PostgreSQL public schema
 ```
@@ -142,6 +156,7 @@ Day 18 一度陷入困境：若给 `/api/resources`、`/api/tasks` 各配一条�
 | | `/api/resources` | `/resources` |
 | | `/api/instruments` | `/instruments` |
 | | `/api/tasks` | `/tasks` |
+| | `/api/panels`（Day 28 新增） | `/panels` |
 | | `/api/health` | `/health` |
 
 **收益**：① 多接口天然分得开；② **以后加接口只改本函数代码，不用再碰网关**；③ 契约里登记的浏览器地址一个字不变。

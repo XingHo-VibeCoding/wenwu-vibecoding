@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import OpItem from "../components/OpItem.jsx";
+import PanelCard from "../components/PanelCard.jsx";
+import { usePanels } from "../hooks/usePanels.js";
 
 // 类型标签与第 2 周静态站（index.html 的 .ins-chip）完全一致；
 // 筛选沿用「device_name 前缀子串匹配」（接口与 mock 的 device_name 同值，如「万用表 GDM-8341」）
@@ -9,9 +11,12 @@ function norm(s) {
   return String(s == null ? "" : s).toLowerCase();
 }
 
-export default function DeviceView({ instruments }) {
+export default function DeviceView({ instruments, appStatus }) {
   const [type, setType] = useState("全部");
   const [q, setQ] = useState("");
+
+  // 面板图与按键说明独立加载（Day 28）：接口失败只降级本区块，不影响整页与下方操作条目
+  const panelsState = usePanels(appStatus);
 
   const hits = useMemo(() => {
     const pool =
@@ -26,13 +31,19 @@ export default function DeviceView({ instruments }) {
     });
   }, [type, q, instruments]);
 
+  // 面板卡只跟随类型筛选（关键词只作用于下方操作条目，避免两处过滤口径打架）
+  const shownPanels = useMemo(() => {
+    if (type === "全部") return panelsState.items;
+    return panelsState.items.filter((p) => p.device_name.indexOf(type) > -1);
+  }, [type, panelsState.items]);
+
   const filtered = type !== "全部" || q.trim().length > 0;
 
   return (
     <section className="view" aria-label="设备指南">
       <h2 id="instruments">仪器速查</h2>
       <p className="ins-desc">
-        6 台实验室常用仪器的 34 条常用操作（提炼自厂商说明书，标注出处页码）。点下方按钮按仪器类型筛选，或输入关键词实时过滤。
+        6 台实验室常用仪器的面板示意图 + 按键说明，与 34 条常用操作（均提炼自厂商说明书，标注出处页码）。点下方按钮按仪器类型筛选；关键词只过滤操作条目。
       </p>
 
       <div className="ins-filter" role="group" aria-label="按仪器类型筛选">
@@ -47,6 +58,39 @@ export default function DeviceView({ instruments }) {
             {t === "LCR测试仪" ? "LCR 测试仪" : t}
           </button>
         ))}
+      </div>
+
+      <div className="panel-block">
+        <h3 className="panel-block-head">面板图与按键说明</h3>
+
+        {panelsState.status === "loading" && (
+          <p className="state-box state-box--info" role="status">
+            正在加载面板图与按键说明……
+          </p>
+        )}
+
+        {panelsState.status === "degraded" && (
+          <p className="state-box state-box--warn" role="alert">
+            <b>面板图与按键说明暂时取不到：</b>
+            {panelsState.error}。下方的操作条目不受影响。
+          </p>
+        )}
+
+        {panelsState.status === "ready" &&
+          (shownPanels.length === 0 ? (
+            <p className="panel-empty">「{type}」暂无面板图。</p>
+          ) : (
+            <>
+              <p className="ins-count">
+                以下 {shownPanels.length} 台随上方类型筛选；点每台标题展开面板图与按键表。
+              </p>
+              <ul className="panel-list">
+                {shownPanels.map((p) => (
+                  <PanelCard key={p.device_type} panel={p} />
+                ))}
+              </ul>
+            </>
+          ))}
       </div>
 
       <div className="sv-field">

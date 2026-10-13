@@ -159,6 +159,9 @@ function resolveRoute(pathname) {
   if (p === "/instruments") {
     return { mode: "instruments" };
   }
+  if (p === "/panels") {
+    return { mode: "panels" };
+  }
   if (p === "/tasks") {
     return { mode: "tasks" };
   }
@@ -575,6 +578,49 @@ const server = http.createServer(async function (req, res) {
     if (route.mode === "tasks") {
       var tasks = await repo.listTasks(key);
       ok(res, { count: tasks.length, items: tasks });
+      return;
+    }
+
+    if (route.mode === "panels") {
+      var ptype = parsed ? parsed.searchParams.get("type") || "" : "";
+      if (ptype && DEVICE_TYPES.indexOf(ptype) === -1) {
+        fail(res, 400, "invalid_param", "bad_type");
+        return;
+      }
+      var pqs =
+        "select=device_type,device_name,image_path,image_desc,source,order_no&order=id.asc";
+      if (ptype) {
+        pqs += "&device_type=eq." + ptype;
+      }
+      var panelRows = await repo.listPanels(pqs, key);
+      var keyRows = await repo.listPanelKeys(key);
+      var keysByType = {};
+      for (var k1 = 0; k1 < keyRows.length; k1++) {
+        var kr = keyRows[k1];
+        if (!keysByType[kr.device_type]) {
+          keysByType[kr.device_type] = [];
+        }
+        keysByType[kr.device_type].push({
+          order_no: kr.order_no,
+          key_name: kr.key_name,
+          function_desc: kr.function_desc,
+          source: kr.source
+        });
+      }
+      var panelItems = [];
+      for (var p1 = 0; p1 < panelRows.length; p1++) {
+        var pr = panelRows[p1];
+        panelItems.push({
+          device_type: pr.device_type,
+          device_name: pr.device_name,
+          image_path: pr.image_path,
+          image_desc: pr.image_desc,
+          source: pr.source,
+          order_no: pr.order_no,
+          keys: keysByType[pr.device_type] || []
+        });
+      }
+      ok(res, { count: panelItems.length, items: panelItems });
       return;
     }
 

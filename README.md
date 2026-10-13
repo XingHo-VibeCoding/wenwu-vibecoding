@@ -58,33 +58,34 @@ npm run build    # 构建产物到 web/dist/，上传 CloudBase 静态托管
 
 > ⚠️ 跑检查 1 前**先 `vite build`** —— 它比对的是「线上 JS 字节数 vs 本地 `web/dist/`」，不先构建就会比到上一次的旧产物。
 
-**7 项检查**（每一项都来自本项目真实踩过的坑）：
+**8 项检查**（每一项都来自本项目真实踩过的坑）：
 
 | # | 检查项 | 怎么算通过 |
 |---|---|---|
-| 1 | 公网首页可访问 + 真数据 | `index.html` 200 ｜ JS 字节数与本地 `web/dist/` **逐一吻合** ｜ JS 内含网关域名 + `/scenes` `/resources` `/instruments` `/tasks` |
+| 1 | 公网首页可访问 + 真数据 + 面板图 | `index.html` 200 ｜ JS/CSS 字节数与本地 `web/dist/` **逐一吻合** ｜ JS 内含网关域名 + `/scenes` `/resources` `/instruments` `/tasks` `/panels` ｜ **6 张 `img/panels/*.webp` 逐个核对字节数**（v1.1 新增） |
 | 2 | `GET /api/health` | 200，且响应体**恰好** `{"ok":true,"service":"wenwu-vibecoding"}`（字段级比对） |
-| 3 | 读接口（5 路 GET） | 全部 200，且**字段集逐一吻合契约**（缺字段即 FAIL，肉眼看不出来必须程序比对） |
+| 3 | 读接口（6 路 GET） | 全部 200，且**字段集逐一吻合契约**（缺字段即 FAIL，肉眼看不出来必须程序比对）——含 `/api/panels` + `?type=oscilloscope` + `?type=bogus`→400 |
 | 4 | 写接口（**只跑错误分支**） | 4a `missing_field` / 4b `empty_patch` / 4c `invalid_param` / 4d `task_not_found`，且跑前跑后 `tasks` 数一致（**零变更**） |
-| 5 | 无硬编码密钥 | 源码树（`web/src` + `cloudfunctions` + `index.html`）+ **git 已跟踪文件**，严格 JWT 模式 `eyJ[A-Za-z0-9_-]{10,}` **0 命中**（⚠️ 不含 git 历史提交；证据文档里的假串须先脱敏，否则自污染误报） |
+| 5 | 无硬编码密钥 | 源码树（`web/src` + `cloudfunctions` + `index.html`）+ **git 已跟踪文件**，**三段式 JWT** 模式 `eyJ…{8,}\.…{8,}\.…{8,}` **0 命中**（v1.1 起由宽模式收紧——宽模式会被 `index.html` 里 577 KB 的 base64 图误命中；⚠️ 不含 git 历史提交；证据文档里的假串须先脱敏，否则自污染误报） |
 | 6 | `.gitignore` / `.env.example` | `.env` 被忽略且未跟踪 ｜ `.env.example` 已跟踪且**无真值** |
-| 7 | 数据库可连 + 5 表存在 | 5 张表各有 200 且非空数据（**经接口间接证明**，AI 不持有库凭据） |
+| 7 | 数据库可连 + **6 表**存在 | 6 张表各有 200 且非空数据（**经接口间接证明**，AI 不持有库凭据）——`panels` + `panel_keys` 靠 `/api/panels` 的 `keys` 嵌套非空证明 |
+| 8 | 静态站链接口径 | `index.html` 全部 `href="#…"` 必须匹配 `#/view/anchor`，视图名在 `VIEWS` 内，四场景链接齐全（**v1.1 新增**——Day 13 潜伏 16 天的"裸锚点回落 search"就长在 JS 模板字符串里，故刻意不过滤模板） |
 
-> ⚠️ 检查 4 **不跑写成功路径**（三个写接口都会不可撤销地改线上库，违背"只做不落库/可回滚探测"的铁律，成功路径属人工执行）；检查 7 是**间接证明**，非直连库核验。完整判定口径、Day 26 基线值、已知局限见 `skills/verify-project/SKILL.md`。
+> ⚠️ 检查 4 **不跑写成功路径**（三个写接口都会不可撤销地改线上库，违背"只做不落库/可回滚探测"的铁律，成功路径属人工执行）；检查 7 是**间接证明**，非直连库核验。完整判定口径、基线值、已知局限见 `skills/verify-project/SKILL.md`。
 
 ## 文件结构
 
 ```
 ├── index.html          # 【静态站版】整站单文件
-├── web/                # 【云开发版】Vite + React 项目（dist/ 为构建产物，不入库）
+├── web/                # 【云开发版】Vite + React 项目（dist/ 为构建产物，不入库；public/img/panels/ = 6 张仪器面板图）
 ├── cloudfunctions/     # 云函数源码留档（health/ = /api/health；scenes/ = 全部业务接口）
-├── api-contract.md     # 接口契约（Day 15 建，现 v1.9）：5 张表 + 9 个接口（6 读 + 3 写）
+├── api-contract.md     # 接口契约（Day 15 建，现 v2.0）：7 张表 + 10 个接口（7 读 + 3 写）
 ├── research.md         # 调研文档（Day 3）
 ├── PRD.md              # 需求文档（Day 4，现 v2.4）
 ├── TECH_DESIGN.md      # 技术设计（Day 5，现 v2.5）
 ├── tests/              # 测试清单与实跑存档（error-triage / verify-project / day25-bugfix）+ 线上版本校验器
-├── docs/               # 发布与运维文档：RELEASE-v1.0.md（发布清单）/ ROLLBACK.md（回滚手册）/ CHANGELOG.md
-└── skills/             # 项目内 Skill：设计基线 / CloudBase 运维 / 发布前检查
+├── docs/               # 发布与运维文档：RELEASE-v1.0.md（通用发布流程）/ RELEASE-v1.1.md（本版发布记录）/ ROLLBACK.md（回滚手册）/ CHANGELOG.md
+└── skills/             # 项目内 Skill：设计基线 / CloudBase 运维 / 发布前检查（8 项）
 ```
 
 ## 功能
@@ -95,13 +96,14 @@ npm run build    # 构建产物到 web/dist/，上传 CloudBase 静态托管
 - **场景教程**：USB 数据线 / LocalSend 局域网 / 网盘中转 / 云盘同步，共 4 个场景，每步标注难度与耗时
 - **资源入口**：官方与实用资源网址（新标签打开，带一键复制）
 - **仪器速查**：6 台教学仪器共 34 条操作条目，支持类型筛选 + 关键词搜索
+- **仪器面板图 + 按键介绍**（v1.1 新增）：6 台仪器各 1 张面板示意图（`img/panels/*.webp`）+ 共 **146 条按键**（按键名 / 功能说明 / **印刷页码出处**）；云开发版按设备筛选联动，静态站版图内联为 base64 且支持页内放大
 
 ## 线上访问
 
 - GitHub Pages（静态站版，Day 7 上线）：`https://xingho-vibecoding.github.io/wenwu-vibecoding/`
 - CloudBase 静态托管（云开发版，Day 15 上线）：`https://wenwu-331122-d6gyrwmum2a734671-1498877015.tcloudbaseapp.com/wenwu-vibecoding/`
-- 接口基地址（云函数网关）：`https://wenwu-331122-d6gyrwmum2a734671-1498887015.ap-shanghai.app.tcloudbase.com`（前缀 `/api`，现有 6 个读接口 + 3 个写接口）
-- **当前版本：`v1.0`**（git tag `v1.0`，冻结提交 `d3ad504`，2026-10-11 发布验收）—— 发布清单 `docs/RELEASE-v1.0.md` ｜ 回滚手册 `docs/ROLLBACK.md` ｜ 变更历史 `docs/CHANGELOG.md`
-- 校验"线上现在是哪个版本"：`python tests/check-live-version.py --expect v1.0`
+- 接口基地址（云函数网关）：`https://wenwu-331122-d6gyrwmum2a734671-1498887015.ap-shanghai.app.tcloudbase.com`（前缀 `/api`，现有 7 个读接口 + 3 个写接口）
+- **当前版本：`v1.1`**（git tag `v1.1`，2026-10-13 发布验收，冻结提交见 tag）—— 通用发布流程 `docs/RELEASE-v1.0.md` ｜ 本版发布记录 `docs/RELEASE-v1.1.md` ｜ 回滚手册 `docs/ROLLBACK.md` ｜ 变更历史 `docs/CHANGELOG.md`
+- 校验"线上现在是哪个版本"：`python tests/check-live-version.py --expect v1.1`
 
-> ⚠️ 云开发版状态（2026-10-10 更新）：前端已上线，**数据来自 PostgreSQL 真实数据**——6 个读接口 + 3 个写接口全部在 `scenes` 云函数内（`health/` 仅提供 `/api/health`）；已含场景详情视图。上线前跑一遍「发布前检查」（见上）。
+> ⚠️ 云开发版状态（2026-10-13 更新）：前端已上线，**数据来自 PostgreSQL 真实数据**——7 个读接口 + 3 个写接口全部在 `scenes` 云函数内（`health/` 仅提供 `/api/health`）；已含场景详情视图 + 仪器面板区块；**7 张表**（含 v1.1 新增 `panels` / `panel_keys`）。上线前跑一遍「发布前检查」（见上）。

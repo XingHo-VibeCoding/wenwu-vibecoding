@@ -1,12 +1,14 @@
 # 《电子设备使用指南》接口契约（api-contract）
 
-> **v1.9 ｜ Day 26** ｜ 2026-10-10 ｜ Vibe Coding 五步工作流 · 第 4 周第 5 天（**订正 §4.6 一处 `error` 标识误记：`bad_task_id` → `invalid_param`；接口代码零变更**）
+> **v2.0 ｜ Day 28** ｜ 2026-10-12 ｜ Vibe Coding 五步工作流 · 第 5 周第 3 天（**新增 `panels` / `panel_keys` 两张表 + 一个读接口 `GET /api/panels`；读接口 6 → 7 个**）
 >
 > **本文档的依据**：`PRD.md` **v2.4** 第 6 节「数据字段」与第 7 节「暂不做清单」第 218 行补注（Day 18 晚开 `POST` 例外 → **Day 22 再开 `PATCH` / `DELETE` 两个例外** → **Day 23 未再增删任何接口**）+ `TECH_DESIGN.md` **v2.5** 第 3 节「数据模型」/ 第 5.3 节「云函数内部分层」+ **`db/schema.sql` 与 `db/seed.sql`（Day 16 定稿并已在 CloudBase 实际执行）** + `web/src/data/mock.js`（Day 15 程序化提取的真实数据）+ `cloudfunctions/health/README.md`（Day 15 已上线口径）+ **`cloudfunctions/scenes/README.md`（Day 17 新增 / Day 18 更新 / Day 19 补分层与回归，含网关路径行为、方案 K 路由、鉴权与错误口径、目录结构、部署注意）** + **`web/src/api/client.js`（Day 23 起：前端错误分类口径的唯一实现处）**。
 > **本文档的读者**：Day 22 写 PATCH/DELETE 的我、**Day 23 统一错误提示的我**、第二期的我。
 > **一句话总纲**：**契约先定，实现后填**——本期登记的 **6 个读接口已于 Day 18 全部点亮**（全走 GET）；**写入接口三个已全部上线并实测通过**：`POST /api/steps/measure`（Day 18 晚，§4.5）、**`PATCH /api/steps/measure`（Day 22，§4.5.1）**、**`DELETE /api/tasks/:id`（Day 22，§4.6）**，写入例外的理由见 §7.1 第 12 项与 §7.1 第 17 项。
 >
 > ⚠️ **诚实声明**：本文档中标注「**待定**」的条目是**尚未拍板的提案**，不是既成事实；标注「**已实现**」的条目有实测证据；标注「沿用」的条目直接沿用 PRD/TECH_DESIGN 的既有字段口径，未新增发明。
+>
+> 📌 **v2.0 核心变化（Day 28）**：**首次扩容"图片内容"——新增 2 张表 + 1 个读接口（★本次接口口径有实质变化）**。① **§3.6 新增两张表**：`panels`（仪器面板图，**6 行**，一行一张图）+ `panel_keys`（仪器按键/部件说明，**146 行**），关联键均为 `device_type`（与 `instruments` 同一 `CHECK` 枚举），**与 `scenes`/`steps` 的"父表 + 子表"范式同构**；② **§4.7 新增 `GET /api/panels`**——**只读**，支持 `type` 过滤（复用同一 6 值白名单与同一 `bad_type` 400 文案），响应把 `panel_keys` 按 `device_type` 分组**嵌套进每台的 `keys[]`**（与 `GET /api/scenes/:id` 带回 `steps[]` 同构）；**不提供 `q`**（按键名搜索由前端本地过滤，见 §4.7 口径说明）；③ **§4.4 库侧授权新增一行**：`GRANT SELECT ON panels, panel_keys TO anon;`——**必须单独授**，因为 Day 17 的 `GRANT SELECT ON ALL TABLES` 是在这两张表建表**之前**执行的，**不会**覆盖后建的表（缺则新接口稳定 500，而老读接口毫发无损，这个不对称坑 Day 22 已在写权限上踩过一次）；④ **图片是静态资源，不是接口数据**——`panels.image_path` 存**相对前端部署根**的路径（`img/panels/panel-<device_type>.webp`），由前端与原页面**同域**直接取用；**不新增域名、不引入 CORS、不触发 §2.4 的写入风险重估**；⑤ **两版同源**：云开发版走本接口 + 桶内图片，静态站单文件版把同一批图 **base64 内联**（体积实测见 `docs/` 相关记录，守 AC-14④"断网零网络请求"）；⑥ **本次未新增任何写入接口**，`PRD.md` 第 218 行"不做写入类接口"的活约定**未被触碰**。**判定**：读接口 **6 → 7**、写接口 **3 个不变**；v1.9 的全部口径与实测证据继续有效。
 >
 > 📌 **v1.9 核心变化（Day 26）**：**订正一处 `error` 标识的误记（接口代码零变更）**——§4.6 `DELETE /api/tasks/:id` 的「非法 id」分支，原登记 `error: "bad_task_id"`，**实际为 `error: "invalid_param"`**。根因：代码里 `bad_task_id` 是那句中文 `message`（"任务编号必须是正整数"）的**文案 key**，被误当成了 `error` 值（`failMsg(res, 400, "invalid_param", MSG.bad_task_id)`）。Day 26 实测证据：`DELETE /api/tasks/abc` → `400 {"ok":false,"error":"invalid_param","message":"任务编号必须是正整数"}`。**同步修正**：§2.3 前端分类表、§4.6 失败表与实测证据表**划线保留原值 + 补注**。**判定**：**接口代码一字未改**（函数本就返回 `invalid_param`，是**文档登记错了**，不是实现错了）；其余 6 读 + 3 写的口径全部继续有效。**引擎注**：由 Day 26 发布前检查 Skill（`skills/verify-project`）在核对检查项期望值时实测发现。
 >
@@ -120,6 +122,8 @@
 > **写入接口的文案不在此表**：`POST /api/steps/measure`（Day 18 晚补做新增）的专属错误文案（`missing_field` / `already_measured` / `step_not_found`）列在 **§4.5**；本表只覆盖读接口的 7 条。
 >
 > **Day 22 追加**：`PATCH /api/steps/measure`（§4.5.1）沿用 §4.5 同一批文案，**新增一条 `empty_patch`**（三个可选字段一个都没给）；`DELETE /api/tasks/:id`（§4.6）新增两条 `bad_task_id` / `task_not_found`。**两处新文案均不重复登记在此表**，见各自小节。
+>
+> **Day 28 追加**：`GET /api/panels`（§4.7）**零新增文案**——`type` 越界复用本表第 3 条 `invalid_param`（同一句"type 取值不在允许范围内…"，因枚举值与 §3.4 完全一致），非 GET 复用第 5 条 `method_not_allowed`，查库失败复用第 7 条 `internal_error`。**云函数 `MSG` 26 条一字未加**，本次实现只新增分支、不新增文案。
 >
 > **Day 23 追加 —— 前端错误分类口径（`ApiError`，本节只登记"前端怎么看接口错误"，不改接口）**：
 >
@@ -289,6 +293,56 @@
 **真实数据（8 条，已入库）**：实验数据传电脑 / 拍板书（→ scene-1）、交作业 / 电脑文件传回手机（→ scene-2）、大文件传输 / 传安装包（→ scene-3）、资料两端同步 / 同步笔记（→ scene-4）→ 满足 AC-04「8 个按钮，每场景至少 2 条」。
 
 > **`keywords` 为什么全存 NULL**：前端那 8 个关键词是**从 label 推导出来的，不是真实数据**——按"宁缺不编"，字段建好但值留空。以后真有了确定的搜索词再补。
+
+### 3.6 `panels` + `panel_keys` —— 仪器面板图 + 按键说明（**Day 28 新增，2 张表**）
+
+> **建表方式**：`db/migration-day28.sql`（**`CREATE TABLE IF NOT EXISTS`，绝不 `DROP`**——线上已有真数据，`db/schema.sql` 开头含 `DROP`，**绝不可整份重跑**）。
+> **灌数方式**：`db/seed-day28.sql`（幂等：只清空并重灌这两张新表，**不碰 5 张老表**）。
+> **数据来源**：6 本厂商说明书的「面板介绍」章节，**逐条转录自 PDF 文字层**，未编造、未增删语义。
+
+#### 3.6.1 `panels` —— 仪器面板图（**6 行**，一行一张图）
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| `id` | integer | **主键**（自增） | — |
+| `device_type` | text | NOT NULL，`CHECK IN (6 个枚举，同 3.4)` | **关联键**（与 `instruments.device_type` 同口径） |
+| `device_name` | text | NOT NULL | 仪器类型 + 型号，**写法与 `instruments.device_name` 逐字一致** |
+| `image_path` | text | NOT NULL | 面板图**相对前端部署根**的路径，如 `img/panels/panel-oscilloscope.webp` |
+| `image_desc` | text | NOT NULL | 图内容简述（`前面板` / `主面板`） |
+| `source` | text | NOT NULL | 出处：手册名 + **页脚印刷页码**（沿用 3.3 / 3.4 的 `source` 口径） |
+| `order_no` | integer | NOT NULL DEFAULT 1，`CHECK >= 1` | 同一仪器的第几张图；**本期每台 1 张恒为 1**，将来加后面板图 = 追加行 |
+
+**唯一约束**：`UNIQUE (device_type, order_no)`。
+
+**真实数据（6 行，待灌入）**：
+
+| `device_type` | `device_name` | `image_desc` | `source` |
+|---|---|---|---|
+| `dc_power` | 直流电源 GPS-2303C | 前面板 | 说明书 P15（图5-1 前面板） |
+| `multimeter` | 万用表 GDM-8341 | 前面板 | 操作手册 P14（前面板） |
+| `oscilloscope` | 示波器 GDS-1102B | 前面板 | 操作手册 P15（前面板） |
+| `signal_gen` | 信号发生器 AFG-2225 | 前面板 | 使用手册 P12（前面板） |
+| `lcr` | LCR测试仪 LCR-6002 | 前面板 | 使用手册 P23（Figure 3-1 前面板） |
+| `curve_tracer` | 晶体管图示仪 WQ4830 | 主面板 | 使用说明书 P7（图1 主面板） |
+
+> ⚠️ **图片文件不入库**：库里只存**路径**。6 个 WebP 文件（合计约 **423 KB**）随前端产物上传到静态托管桶的 `wenwu-vibecoding/img/panels/` 下。**签入仓库的是 `web/public/img/panels/*.webp`**（Vite 构建自动拷进 `dist/`）；**原始 PDF 仍按 `PRD.md` §119 不入库、不部署**——入库的只是从中裁出的教学示意图。
+
+#### 3.6.2 `panel_keys` —— 仪器按键/部件说明（**146 行**）
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| `id` | integer | **主键**（自增） | — |
+| `device_type` | text | NOT NULL，`CHECK IN (6 个枚举)` | **挂"整台仪器"而非某张图**（图示仪的编号表跨主面板/测试台/后面板连续） |
+| `order_no` | integer | NOT NULL，`CHECK >= 1` | 说明书面板介绍中的**原始编号（图上圈号）**；同仪器内不重号 |
+| `key_name` | text | NOT NULL | 按键/部件名；**供前端搜索** |
+| `function_desc` | text | **可空** | 功能说明，转录自说明书原文；**说明书只给名称没给说明时存 NULL**（如 LCR-6002 全 12 条），**不编造** |
+| `source` | text | NOT NULL | 出处：手册名 + 页脚印刷页码 |
+
+**唯一约束**：`UNIQUE (device_type, order_no)`。**不加外键**：`device_type` 是自然键，靠 `CHECK` 枚举保证一致（与 `instruments` 独立表的风格一致）。
+
+**数量分布（真实统计，非估计）**：图示仪 WQ4830 **36** / 示波器 GDS-1102B **38** / 信号发生器 AFG-2225 **17** / 万用表 GDM-8341 **14** / LCR-6002 **12** / 直流电源 GPS-2303C **29** = **146 条**。
+
+> **两处如实登记的取舍**：① **GDM-8341 下排功能键**（SHIFT/EXIT/MENU 等，手册 P17 之后）**本期不收录**，已在 `db/seed-day28.sql` 注明；② **GPS-2303C 圈号 29/30** 在原手册中指向**同一组 TRACKING 按键**，故合并为 1 条（共 29 条），**未拆成两条凑数**。
 
 ---
 
@@ -567,7 +621,7 @@ Host: wenwu-331122-d6gyrwmum2a734671-1498887015.ap-shanghai.app.tcloudbase.com
 | 数据来源 | `https://{envId}.api.tcloudbasegateway.com/v1/rdb/rest/{table}`，PostgREST 查询语法（`?id=eq.x&select=*&order=no.asc`） |
 | 参数化 | 过滤走 PostgREST 查询参数（天然参数化、防注入）；路径参数另过正则白名单（如 `^scene-[0-9]+$`）双保险 |
 | 鉴权 | `Authorization: Bearer <PUBLISHABLE_KEY>`，Key 由**云函数环境变量**注入（`Publishable Key` → 角色 `anon`），不进代码/Git/聊天/前端 |
-| 库侧授权 | `GRANT USAGE ON SCHEMA public TO anon;` + `GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;`（只读）→ **Day 18 晚追加写权限**：`GRANT UPDATE ON steps TO anon;`；**Day 22 追加**：`GRANT DELETE ON tasks TO anon;`（**仅 `tasks` 一张表**，`steps` / `scenes` / `resources` / `instruments` 未授 `DELETE`） |
+| 库侧授权 | `GRANT USAGE ON SCHEMA public TO anon;` + `GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;`（只读）→ **Day 18 晚追加写权限**：`GRANT UPDATE ON steps TO anon;`；**Day 22 追加**：`GRANT DELETE ON tasks TO anon;`（**仅 `tasks` 一张表**，`steps` / `scenes` / `resources` / `instruments` 未授 `DELETE`）；**Day 28 追加**：`GRANT SELECT ON panels, panel_keys TO anon;`（⚠️ **必须单独授**——Day 17 那句 `GRANT SELECT ON ALL TABLES` 执行在**这两张表建表之前**，**不会**自动覆盖后建的表；缺则 `/api/panels` 稳定 `500`，而 6 个老读接口完全不受影响） |
 | RLS | **未启用**（本期数据公开只读，不需要；第二期有用户数据再议） |
 | **路由（Day 18 定稿）** | 网关**只配一条 `/api`** 指向 `scenes` 函数，全部接口由函数内分发——见下方「方案 K」 |
 | 日志 | 每请求一行：`[ISO时间] METHOD path 模式 -> 状态码 耗时ms`，**只打这四样** |
@@ -643,6 +697,7 @@ Day 19 把数据库访问代码从 `index.js` 拆到独立文件 `repository.js`
 - ⚠️ **本节的接口口径（路径 / 字段名 / 响应形状 / 状态码）一个字都没变**——分层是**实现内部**的事，契约只登记对外可见的部分，故 §4.1–§4.5 全部原样。
 - ⚠️ **部署代价**：`index.js` 现 `require("./repository")`，**两个文件必须一起部署**（此前只需贴一个 `index.js`）。控制台在线编辑器能否多文件部署**尚未实测**，列在 §7.2。
 - 分层图与职责边界表见 `TECH_DESIGN.md` §5.3；回归清单一式两份见 `cloudfunctions/scenes/README.md`。
+- **Day 28 新增数据层函数**：`listPanels(queryString, key)` / `listPanelKeys(key)`（供 §4.7 使用）；`REST_BASE` 仍**只在** `repository.js`。**部署提醒不变**：`index.js` 与 `repository.js` 必须**一起**部署。
 
 ---
 
@@ -914,10 +969,88 @@ Host: wenwu-331122-d6gyrwmum2a734671-1498887015.ap-shanghai.app.tcloudbase.com
 >
 > **一个语义小瑕疵（如实记录，未修）**：`DELETE /api/tasks/0` 返回 **404**（`0` 通过了"正整数"正则里的数字形态判断，走到"查不到 → 404"），而非 `400 bad_task_id`（`0` 严格说是非法编号）。**无害**——`?id=eq.0` 本就删不到任何行。若要严格，需把正则收紧为 `^[1-9][0-9]*$`。
 
-### 5.1 现状（**Day 22 收工时**：三层全通，四类操作闭环）
+### 4.7 🆕 已实现（Day 28）：`GET /api/panels` —— 仪器面板图 + 按键说明
+
+**状态：代码已实现并通过本地假 key 全分支自测；线上部署与真库验证待做**（SQL 迁移 + 函数部署由用户在控制台执行）。
+
+**查询参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `type` | string | 否 | `device_type` 枚举值（见 §3.4 取值表，与 `instruments` **同一套 6 值**）。不传 = 全部 6 台 |
+
+**过滤语义**：**只有 `type` 一个过滤条件**（无 `q`，理由见下方口径 2）。`type` 不传即返回全部 6 台，**不是**"分页"。
+
+**响应（200）**
+
+```json
+{
+  "ok": true,
+  "count": 1,
+  "items": [
+    {
+      "device_type": "oscilloscope",
+      "device_name": "示波器 GDS-1102B",
+      "image_path": "img/panels/panel-oscilloscope.webp",
+      "image_desc": "前面板",
+      "source": "操作手册 P15（前面板）",
+      "order_no": 1,
+      "keys": [
+        {
+          "order_no": 1,
+          "key_name": "（示例）MENU 键",
+          "function_desc": "（示例）打开侧边菜单",
+          "source": "操作手册 P15"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**口径说明（5 条，都是有意为之）**
+
+1. **`keys[]` 嵌套在每台仪器下**（与 `GET /api/scenes/:id` 把 `steps[]` 挂在场景下**同构**）。实现上函数内部发**两次** REST 查询（`panels` + `panel_keys`），在**接口层**按 `device_type` 分组后挂上去；`keys` 组内已按 `order_no` 升序、`items` 按 `id.asc`（与 §4.3 各列表接口一致）。
+2. **不提供 `q`**：按键名搜索**由前端本地过滤**（全量 JSON 很小，见下）。理由：① 静态站单文件版**没有后端**，只能本地过滤 → **两版行为一致**；② 本地过滤无网络往返、输入即时响应。
+3. **`image_path` 是相对路径**（相对**前端部署根**，如 `wenwu-vibecoding/`）：前端直接以 `<img src={image_path}>` 取**同域**静态资源。**接口不代理图片、不返回 base64**——URL 由前端按页面基准解析，故库里的值不含 `/wenwu-vibecoding/` 前缀。
+4. **不新增域名**：图片与页面同源（静态托管桶），**无 CORS、无新环境变量、无新密钥**；与 §1.1 的三个域名无关。
+5. **只读**：不触碰 §2.4 的写入风险重估；`PRD.md` 第 218 行"本期不做任何写入类接口"**未被触碰**。
+
+**响应体积（实测参考）**：6 台 + 146 条按键 ≈ **20 KB 级 JSON**，单次全量拉取对前端无压力——这正是"搜索放前端"的依据。
+
+**失败**
+
+| 场景 | 状态码 | 响应 |
+|---|---|---|
+| `type` 取值不在枚举内 | 400 | `{"ok":false,"error":"invalid_param","message":"type 取值不在允许范围内。可选值：dc_power、multimeter、oscilloscope、signal_gen、lcr、curve_tracer"}`（**复用 §4.3.2 同一条**，文案一字未加） |
+| 非 GET（如 `POST /api/panels`） | 405 | `{"ok":false,"error":"method_not_allowed","message":"本接口只接受 GET 请求"}` |
+| 查库失败（**含缺 GRANT**） | 500 | `{"ok":false,"error":"internal_error","message":"服务端读取数据失败，请稍后重试"}` |
+
+> **运行侧前置**：`GRANT SELECT ON panels, panel_keys TO anon;`——**必须单独授**（原因见 §4.4 授权行与 §3.6）。**缺则本接口稳定 500，而 6 个老读接口毫发无损**（这个不对称坑 Day 22 已在写权限上踩过一次）。
+
+**本地自测证据（2026-10-12，假 key，零副作用）**：`.workbuddy/tmp/panels-local-test.py` → **PASS 8 / FAIL 0**：
+
+| # | 请求 | 实测 |
+|---|---|---|
+| 1 | `GET /api/health` | `200`（`service=wenwu-vibecoding`） |
+| 2 | `GET /api/panels?type=xxx` | `400 invalid_param`（**调 REST 前**即拦截） |
+| 3 | `GET /api/panels` | `500 internal_error`（**假 key 打真 REST 必败 = 已进数据层**，耗时 124ms 即网络往返证据） |
+| 4 | `GET /api/panels?type=oscilloscope` | `500 internal_error`（同上） |
+| 5 | `POST /api/panels` | `405 method_not_allowed` |
+| 6 | `GET /api/instruments?type=xxx` | `400`（**回归：老接口未坏**） |
+| 7 | `GET /api/scenes` | `500`（回归，假 key） |
+| 8 | `GET /api/hello` | `400`（回归） |
+
+⚠️ **真库 `count` 断言必须部署后实测**（本地假 key 看不到真实数据）——判据：`/api/panels` → `count:6`，`?type=oscilloscope` → `count:1` 且该台 `keys` **38** 条。**此条为待办，不得预先记成已通过。**
+
+**实现口径**：在同一个 `scenes` 云函数内加 GET 分支；**网关路由没有动**（方案 K 的 `/api` 一条直接覆盖：`/api/panels` → 函数收到 `/panels`）；`package.json` **一字未改**、代码**纯 ASCII 零 `//`** 两条铁律照旧（`index.js` 17651 B / `repository.js` 3439 B，非 ASCII = 0、行首注释 = 0，`node --check` 均 exit 0）。
+
+**数据层新增 2 个函数**：`listPanels(queryString, key)`、`listPanelKeys(key)`——`REST_BASE` 仍**只在** `repository.js`（见 §4.4.4 分层）。
+
+### 5.1 现状（**Day 22 收工时**：三层全通，四类操作闭环；**Day 28 局部更新**：表 5 → **7 张**、读接口 6 → **7 个**）
 
 ```
-【已有】CloudBase PostgreSQL —— 5 张表（tasks 现 6 条，Day 22 删了 2 条）✅
+【已有】CloudBase PostgreSQL —— 7 张表（Day 28 新增 `panels` / `panel_keys`；`tasks` 现 6 条，Day 22 删了 2 条）✅
                 │
                 │  ✅ 已接通（Day 17）：云函数经 PostgreSQL REST API 读写
                 ▼
@@ -931,7 +1064,7 @@ Host: wenwu-331122-d6gyrwmum2a734671-1498887015.ap-shanghai.app.tcloudbase.com
 ```
 
 - **诚实结论（Day 22 更新）**：Day 16 记录的"三层一层都没接通"，**至 Day 22 已全部接通**——① **库 ↔ 云函数**：全通（Day 17 起）；② **云函数 ↔ 前端**：全通（Day 20 接通，CORS 平台内置解决问题，`fetch` 四路接口线上 200）；③ **写入侧**：三个写入接口全部上线并实测（`POST` Day 18 晚 / `PATCH`、`DELETE` Day 22）。
-- **四类操作闭环（Day 22 达成）**：**查**（6 个 GET 接口）、**改**（`PATCH /api/steps/measure`）、**删**（`DELETE /api/tasks/:id`）、**增**→ 本项目的"增"由 `db/seed.sql` 承担（**不开放接口层 INSERT**，见 §7.2）。
+- **四类操作闭环（Day 22 达成）**：**查**（6 个 GET 接口 → **Day 28 增至 7 个**，新增 `GET /api/panels`）、**改**（`PATCH /api/steps/measure`）、**删**（`DELETE /api/tasks/:id`）、**增**→ 本项目的"增"由 `db/seed.sql` / `db/seed-day28.sql` 承担（**不开放接口层 INSERT**，见 §7.2）。
 - 打包产物路径：`web/dist/` → 上传 CloudBase 静态托管 → 公网子路径 `/wenwu-vibecoding/`。
 - 静态站版（根 `index.html`）与 React 版**都还在跑**，两版并存（判卷标准分两套，不混用）。
 - ~~**写入侧（Day 18 晚新增，待做）**：本文档唯一的写入接口 `POST /api/steps/measure`，契约已登记（**§4.5**），**代码 / 部署 / 实测尚未做**。~~ → **Day 18 晚已完成**（代码/部署/实测同日做完）；**Day 22 追加 `PATCH`（§4.5.1）与 `DELETE`（§4.6）**，写入侧从 1 个接口扩到 3 个。
@@ -1036,6 +1169,8 @@ Day 17 改造前端时按此表改，避免漏字段。**右侧是数据库真�
 | 17 | **🆕 未开放接口层 `INSERT`**（Day 22 新增）：本期"增"由 `db/seed.sql` 承担，**不开放写接口的增** | 前端无"新增任务"入口；新增内容需走 SQL/seed | 有意为之：`INSERT` 的风险（脏数据、无审核）高于 `UPDATE`/`DELETE`，用户拍板只开改与删 |
 | 18 | **🆕 `scenes` / `steps` 的删除未开放**（Day 22 新增）：`DELETE` 只对 `tasks` 开放 | 欲重建场景/步骤：走 `db/seed.sql` | 有意为之：`scenes` 删除会 `ON DELETE CASCADE` **级联清空 `steps` 与 `tasks`**（一条 DELETE 毁半个库），风险不可接受 |
 | 16 | **CORS：平台已内置（Day 20 实测反转），撤头版待部署**。实测（python urllib 直连网关）：① 带 Origin 请求时平台**自动回显 ACAO**（值＝请求 Origin，限已登记域；`example.com` 不回显）；② `OPTIONS` 预检由**平台接管**（`204` + ACAM/ACAH 按请求回显，POST JSON 预检可过）；③ 函数自带静态域 ACAO 与平台回显叠加＝**双值必被浏览器拒**（浏览器已实测复现 `multiple values ... only one is allowed`）——方案甲已推翻，函数 CORS 代码全部撤除（`index.js` 回到 Day 19 版） | 平台回显行为**无官方文档背书（待观察）**；若平台未来停用回显，退路＝函数加"动态回显 Origin（限两个已知域）"，**必须先确认平台停止回显再加**，否则又是双值 | 重新部署撤头版 `index.js` → 浏览器**地址栏直开 §1.1 正式静态地址**（勿用控制台「访问应用」跳的 webapps 预览域）→ Console `fetch` 预期 `CORS OK true 4`；步骤见函数 README「CORS」节 |
+| 19 | **🆕 `GET /api/panels` 的线上部署与真库验证未做**（Day 28 新增）：代码已实现 + 本地假 key 自测 **PASS 8 / FAIL 0**，但**函数未部署、`migration-day28.sql` 与 `seed-day28.sql` 未执行** | 线上调 `/api/panels` 仍拿不到数据；真库 `count`（应为 6，`?type=oscilloscope` 应为 1 / `keys` 38 条）**未验证** | 待用户执行 SQL + 部署函数（见 §4.7）；**验证前不得记成已通过** |
+| 20 | **🆕 面板图小字在缩放显示下的可读性**（Day 28 新增）：面板丝印标注最小 **1.1 pt**（示波器）/ **1.4 pt**（万用表），缩略显示时**物理不可读**（渲染 dpi 已按需提到 520 / 400，但缩放后仍救不回） | 用户需**放大查看**才能读细小按键名（如 `PUSH TO 2000`） | 建议**板块 4** 加「点击查看原图」（云开发版新标签开桶内原图 / 静态站开内联图）；**尚未拍板** |
 
 ---
 
@@ -1053,5 +1188,6 @@ Day 17 改造前端时按此表改，避免漏字段。**右侧是数据库真�
 | **v1.7** | **2026-10-07** | **Day 22 PATCH / DELETE 上线，四类操作闭环（★本次新增两个写入接口，接口口径有实质变化）**：① **新增 §4.5.1 `PATCH /api/steps/measure`**（部分更新，"给谁改谁"；与 POST 同路径按方法分流；新增错误标识 `empty_patch`；**允许改已 `measured` 的行**，解开 §4.5 的两个死结）；② **新增 §4.6 `DELETE /api/tasks/:id`**（先查后删；成功形状 `{ok,deleted:{id,label}}`，**与列表接口不同**；新增 `bad_task_id` / `task_not_found`；代码层 `deleteRows` 强制路径含 `?` 防"删空整表"）；③ **§2.1 方法第二次放开例外**（POST → 加 PATCH / DELETE，仍未开放的：`PUT`、批量、内容字段编辑、四表删除）；④ **§2.4 鉴权风险再重估**（写入接口 1 → 3 个，"接口只读"论据彻底作废；**明示前端二次确认不是安全边界**）；⑤ **§4.4 库侧授权补 `GRANT DELETE ON tasks`**（仅 `tasks` 一张表）；⑥ **§4.4.2 补记方案 K 对 PATCH / DELETE 同样放行**（探针实测，收到本函数 405 而非网关 `INVALID_PATH`）；⑦ **§5.1 现状更新为"三层全通、四类操作闭环"**、§5.2 mermaid 与步骤补写入侧；⑧ **§7.1 新增第 17 项**（PATCH/DELETE 翻案），**§7.2 关闭第 2/5/6/7/8/11/15 项**（CORS、mock 兜底、文案统一、枚举值、前端接接口、写入接口待做、线上回归），**新增第 17–18 项**（未开放 INSERT / 未开放 scenes·steps 删除）；⑨ §7.2 第 1 项更新 AC-08 进度为 **2/20**。**引擎注**：`PRD.md` 同步升 **v2.3**（第 7 节第二次补注）；本次由用户拍板四项（两个例外都开 + 改 PRD 补注 / PATCH 落 `steps` 实测值 / DELETE 落 `tasks` / 前端二次确认当天一起做）；**载入一次真实执行事故**——探针带有效字段致 `scene-1` 第 2 步难度被误改（已改回并全量复核），教训"线上探测必须按真实写入对待"已写入 §4.5.1 |
 | **v1.8** | **2026-10-08** | **Day 23 前端错误分类登记（★本次未改任何接口口径）**：**接口侧一字未动**——路径 / 方法 / 字段名 / 响应形状 / 状态码 / `error` 标识 / `message` 文案**全部沿用 v1.7**（云函数 `MSG` 26 条原封不动，**代码零改动**）。本次只补记**前端消费侧**新增的一层分类：① **§2.3 新增「前端错误分类口径（`ApiError`）」小段**——登记 `kind = input(4xx) / server(5xx) / network(到不了服务端)` 三类判定依据、覆盖的接口情形、前端标签（输入有误 / 服务端异常 / 网络异常），并说明**分类只按状态码 `>=500` 一刀切、不解析 `error` 字符串**（后端加错误码前端无需跟改）；② 明确**文案双来源**——`input`/`server` **透传后端 `message`**（用户拍板不吞成通用话术）、`network` 由前端自造中文（此时无响应体可读）；③ 头部**依据行补 `web/src/api/client.js` 指针**、读者行补 Day 23。**判定**：本期**无新增接口、无废弃接口、无形状变更**，v1.7 全部实测证据继续有效。**引擎注**：`PRD.md` 同步升 **v2.4**（第 7 节第三次补注 + 第 8 节新增风险第 10–11 条）；促成原因是 Day 23 清单要求"三类错误统一中文提示"；实现处唯一 = `web/src/api/client.js`，**本文档登记的是"前端怎么看接口错误"，不是接口本身**；实测证据见 `tests/error-triage-result.txt`（本地假 key 打全量用例 **PASS 11 / FAIL 0**） |
 | **v1.9** | **2026-10-10** | **Day 26 发布前检查 Skill 发现并订正一处 `error` 标识误记（★接口代码零变更）**：§4.6 `DELETE /api/tasks/:id` 的「非法 id」分支，`error` **原登记 `bad_task_id`，实际为 `invalid_param`**（代码 `failMsg(res, 400, "invalid_param", MSG.bad_task_id)`——`bad_task_id` 只是中文 `message` 的文案 key）。本次改动：① **§2.3 前端分类表**、**§4.6 失败表**、**§4.6 实测证据表** 三处**划线保留原值 + 补注**；② **§4.6 新增「口径更正」补注块**；③ 本修订行。**判定**：**接口代码一字未改**（函数本就返回 `invalid_param`，是文档登记错了）；v1.7 / v1.8 其余口径与实测证据继续有效。**引擎注**：由 Day 26 新增的发布前检查 Skill（`skills/verify-project/SKILL.md`）在核对检查项期望值时**实测发现**——"检查 Skill 能抓真问题"的一个实例；`PRD.md` 本次未改（不涉及需求） |
+| **v2.0** | **2026-10-12** | **Day 28 仪器版块扩容：新增 2 张表 + 1 个读接口（★本次接口口径有实质变化，是 v1.4 以来第一次"扩容读接口"）**：① **§3.6 新增 `panels` / `panel_keys` 两表**——`panels`（仪器面板图，**6 行**）+ `panel_keys`（按键/部件说明，**146 行**），关联键 `device_type`（与 §3.4 同一 `CHECK` 枚举），与 `scenes`/`steps` 的"父表 + 子表"范式同构；建表走 **`db/migration-day28.sql`（`IF NOT EXISTS`，绝不 `DROP`）**、灌数走 **`db/seed-day28.sql`（幂等，不碰 5 张老表）**——因线上已有真数据，`db/schema.sql` 含 `DROP` **绝不可整份重跑**；② **§4.7 新增 `GET /api/panels`**（**只读**）：支持 `type` 过滤（复用同一 6 值白名单与 `bad_type` 400 文案），响应把 `panel_keys` **按 `device_type` 分组嵌套进每台的 `keys[]`**（与 `GET /api/scenes/:id` 带回 `steps[]` 同构）；**不提供 `q`**（按键名搜索由**前端本地过滤**——静态站单文件版没有后端，只能本地过滤，故**两版行为一致**）；`image_path` 存**相对前端部署根的路径**，前端同域取用，**不新增域名 / 无 CORS / 无新密钥**；③ **§4.4 库侧授权新增一行**：`GRANT SELECT ON panels, panel_keys TO anon;`（**必须单独授**，`ALL TABLES` 不会覆盖后建表）；④ **§2.3 追加**：本接口**零新增文案**（复用第 3 / 5 / 7 条），`MSG` 26 条一字未加；⑤ **§4.4.4 补记新增数据层函数** `listPanels` / `listPanelKeys`；⑥ **§5.1 现状更新**（5 张表 → **7 张表**；6 个 GET → **7 个 GET**）。**判定**：读接口 **6 → 7**、写接口 **3 个不变**；**本次未新增任何写入接口**，`PRD.md` 第 218 行"不做写入类接口"的活约定**未被触碰**；两版同源——云开发版走本接口 + 桶内图片，静态站单文件版把同一批图 **base64 内联**（守 AC-14④ 断网可用）。**引擎注**：本次由文伍拍板四项（新表+新接口 / 静态站也加图 / 出处沿用 / 图转 WebP）促成；**图片合法性**：入库的是从厂商说明书裁出的**矢量线框示意图**（教学引用 + 标注出处），**原始 PDF 仍按 `PRD.md` §119 不入库、不部署**；**状态诚实**：代码已实现并通过**本地假 key 自测 PASS 8 / FAIL 0**，**线上部署与真库 `count` 断言仍待实测**（§4.7 已标注，不得预先记成已通过） |
 
 

@@ -1,4 +1,4 @@
-// 数据来源：CloudBase 云函数网关（Day 17 起上线，6 个读接口，网关已内置 CORS）
+// 数据来源：CloudBase 云函数网关（Day 17 起上线，Day 28 起 7 个读接口，网关已内置 CORS）
 // 地址整串复制自 api-contract.md §1.1（网关域名含环境 ID 段与 .ap-shanghai 地域段），严禁手打
 const API_BASE =
   "https://wenwu-331122-d6gyrwmum2a734671-1498887015.ap-shanghai.app.tcloudbase.com/api";
@@ -89,6 +89,9 @@ export const fetchScenes = () => fetchList("/scenes");
 export const fetchResources = () => fetchList("/resources");
 export const fetchInstruments = () => fetchList("/instruments");
 export const fetchTasks = () => fetchList("/tasks");
+// 面板图 + 按键说明（Day 28 新增，契约 §4.7）。响应同样是 { ok, count, items }，
+// 每台仪器下带 keys[] 嵌套数组，故直接复用 fetchList。
+export const fetchPanels = () => fetchList("/panels");
 
 // 删除一条任务（DELETE /api/tasks/:id，契约 §4.6）
 // 成功形状为 { ok: true, deleted: { id, label } }，与列表接口的 items 不同，故不复用 fetchList

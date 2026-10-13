@@ -69,7 +69,8 @@ git switch --detach 4c264a4
 1. 静态网站托管 → 文件管理 → **进入 `wenwu-vibecoding/`**
 2. 「上传文件」选 `web\dist\index.html`
 3. 「上传文件夹」选 `web\dist\assets`
-4. 层级确认：`wenwu-vibecoding/index.html` + `wenwu-vibecoding/assets/*`
+4. 「上传文件夹」选 `web\dist\img`（**v1.1 起才有**；v1.0 及更早的产物没有这个目录）
+5. 层级确认：`wenwu-vibecoding/index.html` + `wenwu-vibecoding/assets/*`（+ v1.1 起 `wenwu-vibecoding/img/panels/*`）
 
 ### 恢复（回滚完再把目标版本装回来）
 
@@ -84,6 +85,9 @@ git restore --worktree .        # ⚠️ 见坑 1
 
 1. **`git switch` 可能不落地全部文件**：2026-10-11 演练中，`git switch main` 报出 13 个文件 `D`（工作区缺失，索引里有；两个提交都含这些文件）。**用 `git restore --worktree .` 全部补回**，然后**必须复核 `git status` 干净**再去构建 —— 否则会构建出残缺产物。
 2. **上传层级**：`index.html` 必须在 `wenwu-vibecoding/` **根**，别多套一层（`wenwu-vibecoding/wenwu-vibecoding/…` 会导致 404）。若「上传文件夹」多套了一层，改用"新建文件夹 `assets` → 进去 → 上传文件"。
+   > **2026-10-13（Day 29）实测案例**：在 `wenwu-vibecoding/` 里直接「上传文件夹」选整个 `web\dist`，控制台**连文件夹名一起建**，得到 `wenwu-vibecoding/dist/index.html` —— 多包一层，线上地址（指向 `wenwu-vibecoding/` 根）**完全没更新**，页面"看起来什么都没变"。
+   > 现场判据：桶根 `index.html` 的更新时间仍是旧日期；而 `…/wenwu-vibecoding/dist/index.html` 能打开且是新版。
+   > 正解：**进入 `wenwu-vibecoding/` 后再传**（路径栏确认显示 `…/ wenwu-vibecoding`），`index.html` 用「上传文件」，`assets` / `img` 用「上传文件夹」分两次传。
 3. **CDN 缓存**：验证时用**带随机 query 的 URL**（`…/index.html?t=<时间戳>`）绕缓存；浏览器侧用无痕或 `Ctrl+Shift+R`。
 
 ---
@@ -112,7 +116,7 @@ git restore --worktree .        # ⚠️ 见坑 1
 ```bash
 python tests/check-live-version.py                  # 识别当前线上是哪个版本
 python tests/check-live-version.py --expect 4c264a4 # 断言已回滚到目标版本
-python tests/verify-project-run.py                  # 7 项检查（恢复后应回 PASS 7 / FAIL 0）
+python tests/verify-project-run.py                  # 8 项检查（恢复后应回 PASS 8 / FAIL 0）
 ```
 
 **判别矩阵（v1.0 ↔ 4c264a4）** —— 只认这三个差异，别用模糊串：
@@ -127,6 +131,19 @@ python tests/verify-project-run.py                  # 7 项检查（恢复后应
 | JS 文件名 / 字节 | `index-DzyjopGZ.js` / 173400 | `index-ChUL683b.js` / 173388 |
 
 > ⚠️ **不要**用 `云数据库数据`（6 个字）当判据 —— 旧版徽标 `Day 20 · React · 云数据库数据` 也含它，两边都会命中。
+
+**判别矩阵（v1.1 ↔ v1.0）** —— v1.1 起多了 `img/` 目录，且 JS 里有 `/panels`：
+
+| 特征串 | `v1.0` | `v1.1` |
+|---|---|---|
+| `/panels`（新接口） | 0 | **1** |
+| `云数据库数据 · 实时` | 1 | 1 |
+| `2026-10-09`（页脚） | 1 | 1 |
+| JS 文件名 / 字节 | `index-ChUL683b.js` / 173388 | `index-D6c_vhx8.js` / 176787 |
+| CSS 文件名 / 字节 | `index-Dk9WJkSO.css` / 7591 | `index-CCG6c4Xs.css` / 9703 |
+| `img/panels/*.webp` | 404（无此目录） | 6 张全 200（75216/152968/52572/97350/19302/35412） |
+
+> ⚠️ **回滚到 v1.0 时 `img/` 目录不会自动消失**（平台只覆盖不清理）——残留的图不影响 v1.0 页面（旧 JS 不引用它们），但会让"线上到底几版"变模糊；**判版本仍以 `index.html` + `assets/*.js` 的字节数为准**。
 
 ---
 

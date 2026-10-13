@@ -72,7 +72,10 @@ export default function App() {
             {view === "transfer" && (
               <TransferView scenes={data.scenes} resources={data.resources} />
             )}
-            {view === "device" && <DeviceView instruments={data.instruments} />}
+            {/* appStatus 传下去：面板区块据此决定「等主数据 / 走离线兜底 / 自行加载」（Day 28） */}
+            {view === "device" && (
+              <DeviceView instruments={data.instruments} appStatus={status} />
+            )}
             {view === "scene" && (
               <SceneView sceneId={anchor} scenes={data.scenes} />
             )}

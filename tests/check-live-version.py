@@ -27,6 +27,21 @@ BASE = "https://wenwu-331122-d6gyrwmum2a734671-1498877015.tcloudbaseapp.com/wenw
 
 # ---- 已登记的版本指纹（发布 / 回滚后请把新版本补进来）----
 PROFILES = {
+    "v1.1": {
+        "commit": "tag v1.1（Day 29 发布，2026-10-13）",
+        "note": "Day 28–29；新增仪器面板图（img/panels/ 6 张）+ 146 条按键，接口 /api/panels",
+        "files": {
+            "index.html": 541,
+            "assets/index-D6c_vhx8.js": 176787,
+            "assets/index-CCG6c4Xs.css": 9703,
+        },
+        "patterns": {
+            "#/transfer/": 0,
+            "云数据库数据 · 实时": 1,
+            "/panels": 1,
+            "2026-10-09": 1,
+        },
+    },
     "v1.0": {
         "commit": "d3ad504",
         "note": "Day 26 冻结点；线上 v1.0（本手册发布验收时的版本）",
@@ -64,6 +79,9 @@ PROFILES = {
 # ⚠️ 判据提醒：不要用 "云数据库数据" 这种**短串**当指纹 —— 旧版徽标 "Day 20 · React · 云数据库数据"
 #    也含这 6 个字，会两边都命中。必须带后半段 " · 实时"。
 # ⚠️ 判据提醒：不要只搜特征串（React 产物自带 "[object Object]" 之类的报错文案）—— 字节数才是硬判据。
+# ⚠️ 盲区：本校验器**只抓 index.html + 它引用的 assets/**，不抓 img/panels/*.webp。
+#     图走的是桶内路径、不在 index.html 里被引用（React 运行时拼 URL），所以"图漏传"不会被这里发现——
+#     由发布前检查的**检查 1**（逐张核对 6 个图字节数）负责兜住（Day 29 实测：误传多包一层 dist/ 时，图全 404）。
 
 
 def fetch(path, bust_cache=True):
